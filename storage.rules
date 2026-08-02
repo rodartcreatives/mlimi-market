@@ -1,0 +1,62 @@
+rules_version = '2';
+
+/* ============================================================
+   ⚠️ CURRENTLY NOT IN USE
+   ------------------------------------------------------------
+   Mlimi Market hosts produce photos on Cloudinary, not Firebase
+   Storage, because Cloud Storage for Firebase now requires the
+   card-gated Blaze plan (see cloudinary-config.js for the setup
+   that's actually active). This file is kept for reference only,
+   in case Storage access becomes available later and it's worth
+   switching back or running both side by side. It has no effect
+   unless Firebase Storage is provisioned and these rules are
+   deployed to it.
+   ============================================================ */
+
+/* ============================================================
+   MLIMI MARKET — STORAGE SECURITY RULES
+   ------------------------------------------------------------
+   Controls who can upload/read produce photos. This is the
+   main cost-control point: without these rules, Storage is
+   either wide open (anyone can upload anything, unlimited size,
+   unlimited volume — a direct cost and abuse risk) or wrongly
+   locked (nobody can upload at all).
+
+   Path convention: listing-images/{uid}/{filename}
+   A user can only write inside their own {uid} folder. Reading
+   images is public (produce photos need to be visible to any
+   buyer browsing, logged in or not).
+   ============================================================ */
+
+service firebase.storage {
+  match /b/{bucket}/o {
+
+    match /listing-images/{userId}/{fileName} {
+      allow read: if true;
+
+      allow write: if request.auth != null
+                   && request.auth.uid == userId
+                   // Hard server-side size cap as a backstop — the app
+                   // compresses client-side to well under this, but a
+                   // rule should never rely only on client behavior.
+                   && request.resource.size < 3 * 1024 * 1024
+                   && request.resource.contentType.matches('image/.*');
+
+      allow delete: if request.auth != null && request.auth.uid == userId;
+    }
+
+    match /avatars/{userId}/{fileName} {
+      allow read: if true;
+      allow write: if request.auth != null
+                   && request.auth.uid == userId
+                   && request.resource.size < 2 * 1024 * 1024
+                   && request.resource.contentType.matches('image/.*');
+      allow delete: if request.auth != null && request.auth.uid == userId;
+    }
+
+    // Deny everything else by default
+    match /{allPaths=**} {
+      allow read, write: if false;
+    }
+  }
+}
