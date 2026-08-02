@@ -27,19 +27,21 @@ function showToast(message, type = "info", duration = 3500) {
  * Renders a loading / empty / error state into a container.
  * Every important operation should show one of these so the
  * user is never left wondering what happened.
+ *
+ * Depends on icons.js being loaded first (uses icon()).
  */
 function renderState(container, kind, opts = {}) {
   const templates = {
     loading: `<div class="state-block"><div class="spinner"></div></div>`,
     empty: `
       <div class="state-block">
-        <div class="state-block__icon">${opts.icon || "🌾"}</div>
+        <div class="state-block__icon">${opts.icon || icon("sprout", 40)}</div>
         <div class="state-block__title">${opts.title || "Nothing here yet"}</div>
         <div>${opts.message || ""}</div>
       </div>`,
     error: `
       <div class="state-block">
-        <div class="state-block__icon">⚠️</div>
+        <div class="state-block__icon">${opts.icon || icon("alertTriangle", 40)}</div>
         <div class="state-block__title">${opts.title || "Something went wrong"}</div>
         <div>${opts.message || "Check your connection and try again."}</div>
         ${opts.retryLabel ? `<button class="btn btn-outline mt-4" id="stateRetryBtn" style="width:auto;display:inline-flex;padding:0 20px;">${opts.retryLabel}</button>` : ""}
