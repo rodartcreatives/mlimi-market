@@ -276,7 +276,12 @@ h3 { font-size: 18px; }
   padding: var(--space-10) var(--space-4);
   color: var(--color-ink-soft);
 }
-.state-block__icon { font-size: 40px; margin-bottom: var(--space-3); }
+.state-block__icon {
+  display: flex;
+  justify-content: center;
+  margin-bottom: var(--space-3);
+  color: var(--color-line);
+}
 .state-block__title {
   font-family: var(--font-display);
   font-size: 17px;
@@ -341,7 +346,11 @@ h3 { font-size: 18px; }
   min-height: var(--tap-min);
 }
 .bottom-nav__item.is-active { color: var(--color-green-700); font-weight: 600; }
-.bottom-nav__icon { font-size: 20px; }
+.bottom-nav__icon {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
 
 /* The Sell action stands out, as specified */
 .bottom-nav__item.is-sell .bottom-nav__icon {
@@ -350,10 +359,6 @@ h3 { font-size: 18px; }
   width: 40px;
   height: 40px;
   border-radius: 50%;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  font-size: 18px;
   margin-top: -14px;
   box-shadow: var(--shadow-md);
 }
@@ -385,7 +390,6 @@ h3 { font-size: 18px; }
   display: flex;
   align-items: center;
   justify-content: center;
-  font-size: 24px;
 }
 .category-chip__label { font-size: 12px; color: var(--color-ink-soft); text-align: center; }
 
