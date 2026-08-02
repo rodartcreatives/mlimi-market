@@ -1,0 +1,178 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
+<title>Mlimi Market — Sell your produce. Find your market.</title>
+<meta name="description" content="Mlimi Market connects farmers with produce to sell and buyers looking to buy, across Malawi's districts.">
+<meta name="theme-color" content="#123329">
+
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Fraunces:wght@600;700&family=Inter:wght@400;500;600;700&family=JetBrains+Mono:wght@500;600&display=swap" rel="stylesheet">
+
+<link rel="stylesheet" href="css/shared.css">
+
+<style>
+  /* Page-specific styles for the home screen only */
+  .home-hero {
+    padding: var(--space-6) 0 var(--space-4);
+  }
+  .home-hero h1 {
+    font-size: 32px;
+    margin-bottom: var(--space-2);
+  }
+  .home-hero p {
+    color: var(--color-ink-soft);
+    font-size: 15px;
+  }
+
+  .search-bar {
+    display: flex;
+    align-items: center;
+    gap: var(--space-2);
+    background: var(--color-white);
+    border: 1.5px solid var(--color-line);
+    border-radius: var(--radius-md);
+    padding: 0 var(--space-3);
+    margin: var(--space-4) 0;
+    min-height: var(--tap-min);
+  }
+  .search-bar input {
+    border: none;
+    flex: 1;
+    min-height: var(--tap-min);
+    padding: 0;
+  }
+  .search-bar input:focus { outline: none; }
+  .search-bar .icon-wrap { color: var(--color-ink-soft); display: flex; }
+
+  .action-row {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: var(--space-3);
+    margin-bottom: var(--space-6);
+  }
+
+  .section-heading {
+    display: flex;
+    align-items: baseline;
+    justify-content: space-between;
+    margin-bottom: var(--space-3);
+  }
+  .section-heading a {
+    font-size: 13px;
+    font-weight: 600;
+    display: inline-flex;
+    align-items: center;
+    gap: 2px;
+  }
+
+  section + section { margin-top: var(--space-8); }
+</style>
+</head>
+<body>
+
+<div class="page">
+
+  <header class="home-hero">
+    <h1 class="font-display">Mlimi Market</h1>
+    <p>Sell your produce. Find your market.</p>
+  </header>
+
+  <form class="search-bar" id="homeSearchForm" role="search">
+    <span class="icon-wrap" id="homeSearchIcon"></span>
+    <input
+      type="search"
+      id="homeSearchInput"
+      placeholder="What are you looking for?"
+      aria-label="Search produce"
+    >
+  </form>
+
+  <div class="action-row">
+    <a href="sell.html" class="btn btn-primary">Sell Produce</a>
+    <a href="market.html" class="btn btn-secondary">Find Produce</a>
+  </div>
+
+  <section aria-labelledby="categoriesHeading">
+    <h2 id="categoriesHeading" class="mb-4">Browse by category</h2>
+    <div class="category-strip" id="categoryStrip"></div>
+  </section>
+
+  <section aria-labelledby="freshHeading">
+    <div class="section-heading">
+      <h2 id="freshHeading">Fresh Listings</h2>
+      <a href="market.html">See all<span id="freshSeeAllIcon"></span></a>
+    </div>
+    <div id="freshListings"></div>
+  </section>
+
+</div>
+
+<!-- Firebase (compat SDK — plain global objects, no bundler needed) -->
+<script src="https://www.gstatic.com/firebasejs/10.13.1/firebase-app-compat.js"></script>
+<script src="https://www.gstatic.com/firebasejs/10.13.1/firebase-firestore-compat.js"></script>
+
+<script src="js/firebase-config.js"></script>
+<script src="js/icons.js"></script>
+<script src="js/categories.js"></script>
+<script src="js/firestore-helpers.js"></script>
+<script src="js/ui-helpers.js"></script>
+<script src="js/nav.js"></script>
+
+<script>
+  // Icons that live in static markup above, filled in after icons.js loads
+  document.getElementById("homeSearchIcon").innerHTML = icon("search", 18);
+  document.getElementById("freshSeeAllIcon").innerHTML = icon("chevronRight", 14);
+
+  function renderCategoryStrip() {
+    const el = document.getElementById("categoryStrip");
+    el.innerHTML = CATEGORIES.map((cat) => `
+      <a href="market.html?category=${cat.slug}" class="category-chip">
+        <span class="category-chip__icon">${icon(cat.icon, 24)}</span>
+        <span class="category-chip__label">${cat.name}</span>
+      </a>
+    `).join("");
+  }
+
+  async function loadFreshListings() {
+    const container = document.getElementById("freshListings");
+    renderState(container, "loading");
+    try {
+      const items = await getListings({ sort: "newest" });
+      const fresh = items.slice(0, 6);
+
+      if (!fresh.length) {
+        renderState(container, "empty", {
+          title: "No produce listed yet",
+          message: "Be the first to list your produce on Mlimi Market.",
+        });
+        return;
+      }
+
+      container.innerHTML = `<div class="listing-grid">${fresh.map(listingCardHTML).join("")}</div>`;
+    } catch (err) {
+      console.error("Failed to load fresh listings:", err);
+      renderState(container, "error", {
+        title: "We couldn't load the market",
+        message: "Check your connection and try again.",
+        retryLabel: "Retry",
+        onRetry: loadFreshListings,
+      });
+    }
+  }
+
+  document.getElementById("homeSearchForm").addEventListener("submit", (e) => {
+    e.preventDefault();
+    const q = document.getElementById("homeSearchInput").value.trim();
+    window.location.href = q ? `market.html?q=${encodeURIComponent(q)}` : "market.html";
+  });
+
+  renderCategoryStrip();
+  loadFreshListings();
+  renderBottomNav("home");
+</script>
+
+</body>
+</html>
