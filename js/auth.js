@@ -1,0 +1,193 @@
+/* ============================================================
+   AUTH HELPERS
+   ------------------------------------------------------------
+   Shared across every page. Depends on firebase-config.js
+   being loaded first.
+
+   IMPORTANT: Anything here is for UI convenience only
+   (showing/hiding buttons, redirecting). It is NOT a security
+   boundary. The real enforcement lives in firestore.rules.
+   Never trust a client-side role check alone.
+   ============================================================ */
+
+/**
+ * ADMIN_UIDS: a hardcoded allowlist of Firebase Auth UIDs that
+ * are treated as admins.
+ *
+ * Why hardcoded and not a Firestore field like `isAdmin: true`?
+ * Because any field on a user's own document can be edited by
+ * that user unless rules explicitly forbid it — and a boolean
+ * flag is exactly the kind of thing that's easy to accidentally
+ * leave writable. A hardcoded list checked in security rules
+ * cannot be changed from the browser at all.
+ *
+ * The real long-term approach is Firebase Auth custom claims,
+ * set via the Admin SDK from a trusted server (e.g. a Cloud
+ * Function), which requires a backend process we don't have yet.
+ * This allowlist is the honest MVP stand-in for that — you set
+ * your own UID here AND in firestore.rules by hand. It is not
+ * meant to scale past a small number of admins.
+ */
+const ADMIN_UIDS = [
+  // "PASTE_YOUR_FIREBASE_UID_HERE"
+];
+
+function isAdminUid(uid) {
+  return ADMIN_UIDS.includes(uid);
+}
+
+/**
+ * Waits for Firebase Auth to resolve the current user on page load.
+ * Firebase's auth state is asynchronous — on a fresh page load it's
+ * briefly unknown whether someone is logged in. Use this instead of
+ * reading auth.currentUser directly on page load.
+ */
+function onAuthReady() {
+  return new Promise((resolve) => {
+    const unsubscribe = auth.onAuthStateChanged((user) => {
+      unsubscribe();
+      resolve(user);
+    });
+  });
+}
+
+/* ---------- Email/password ---------- */
+
+async function registerWithEmail(email, password) {
+  const cred = await auth.createUserWithEmailAndPassword(email, password);
+  return cred.user;
+}
+
+async function loginWithEmail(email, password) {
+  const cred = await auth.signInWithEmailAndPassword(email, password);
+  return cred.user;
+}
+
+async function sendPasswordReset(email) {
+  await auth.sendPasswordResetEmail(email);
+}
+
+/* ---------- Google Sign-In ---------- */
+
+/**
+ * Starts Google Sign-In using the redirect flow rather than a
+ * popup. Popups are unreliable on mobile browsers — they can be
+ * blocked outright, or silently fail inside in-app/webview
+ * browsers. Redirect sends the whole page to Google and back,
+ * which works consistently on Android browsers like Chrome or
+ * Brave. This function navigates away immediately; there is
+ * nothing to await afterward on this page load.
+ */
+function signInWithGoogle() {
+  const provider = new firebase.auth.GoogleAuthProvider();
+  return auth.signInWithRedirect(provider);
+}
+
+/**
+ * Call this once on every page load that might be the return trip
+ * from signInWithGoogle() (login.html and register.html at least).
+ * Returns the signed-in user if this page load was a redirect
+ * return, or null otherwise — check this before onAuthReady() so
+ * you don't miss a fresh Google sign-in.
+ */
+async function handleGoogleRedirectResult() {
+  const result = await auth.getRedirectResult();
+  return result && result.user ? result.user : null;
+}
+
+/* ---------- Profile bootstrapping ---------- */
+
+/**
+ * Ensures a Firestore profile document exists for a signed-in
+ * user. Needed because Google Sign-In only gives us a name, email,
+ * and photo — not phone, role, or district, which our schema
+ * requires. On first sign-in this creates a minimal profile with
+ * those fields blank; the calling page should then check
+ * profileNeedsCompletion() and route the user to fill them in
+ * before they can list or contact anyone.
+ *
+ * Safe to call after every sign-in (Google or email) — it's a
+ * no-op if a profile already exists.
+ */
+async function ensureUserProfile(user) {
+  const ref = db.collection("users").doc(user.uid);
+  const doc = await ref.get();
+
+  if (doc.exists) {
+    return { profile: { id: doc.id, ...doc.data() }, isNew: false };
+  }
+
+  const minimalProfile = {
+    fullName: user.displayName || "",
+    email: user.email || "",
+    phone: "",
+    role: "", // "farmer" | "buyer" | "both" — set during profile completion
+    district: "",
+    location: "",
+    bio: "",
+    avatarUrl: user.photoURL || "",
+    isVerified: false,
+    whatsappPublic: false,
+    createdAt: firebase.firestore.FieldValue.serverTimestamp(),
+    updatedAt: firebase.firestore.FieldValue.serverTimestamp(),
+  };
+
+  await ref.set(minimalProfile);
+  return { profile: { id: user.uid, ...minimalProfile }, isNew: true };
+}
+
+/**
+ * True if a profile is missing fields Google Sign-In can't supply.
+ * Pages should check this right after sign-in/registration and
+ * redirect to a "complete your profile" step if true, before
+ * letting the user sell or contact a seller.
+ */
+function profileNeedsCompletion(profile) {
+  return !profile || !profile.role || !profile.phone || !profile.district;
+}
+
+/**
+ * Fetches the current user's profile document from Firestore.
+ * Returns null if not logged in or no profile exists yet.
+ */
+async function getCurrentUserProfile() {
+  const user = auth.currentUser;
+  if (!user) return null;
+  const doc = await db.collection("users").doc(user.uid).get();
+  return doc.exists ? { id: doc.id, ...doc.data() } : null;
+}
+
+/* ---------- Guards ---------- */
+
+/**
+ * Redirects to login.html if not authenticated, preserving the
+ * intended destination so login can bounce back after success.
+ */
+async function requireAuth() {
+  const user = await onAuthReady();
+  if (!user) {
+    const dest = encodeURIComponent(window.location.pathname + window.location.search);
+    window.location.href = `login.html?redirect=${dest}`;
+    return null;
+  }
+  return user;
+}
+
+/**
+ * Guards admin.html. Checks the hardcoded allowlist only —
+ * mirrors what firestore.rules enforces server-side.
+ */
+async function requireAdmin() {
+  const user = await requireAuth();
+  if (!user) return null;
+  if (!isAdminUid(user.uid)) {
+    window.location.href = "index.html";
+    return null;
+  }
+  return user;
+}
+
+async function logout() {
+  await auth.signOut();
+  window.location.href = "index.html";
+                       }
