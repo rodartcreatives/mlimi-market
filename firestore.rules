@@ -1,62 +1,121 @@
 rules_version = '2';
 
 /* ============================================================
-   ⚠️ CURRENTLY NOT IN USE
+   MLIMI MARKET — FIRESTORE SECURITY RULES
    ------------------------------------------------------------
-   Mlimi Market hosts produce photos on Cloudinary, not Firebase
-   Storage, because Cloud Storage for Firebase now requires the
-   card-gated Blaze plan (see cloudinary-config.js for the setup
-   that's actually active). This file is kept for reference only,
-   in case Storage access becomes available later and it's worth
-   switching back or running both side by side. It has no effect
-   unless Firebase Storage is provisioned and these rules are
-   deployed to it.
+   These rules are the actual security boundary. Anything the
+   frontend checks (role, ownership, admin status) is only for
+   UI convenience — a user can open dev tools and call Firestore
+   directly, bypassing every frontend check. These rules are
+   what actually stops them.
+
+   ADMIN ACCESS: hardcoded UID allowlist, not a Firestore field.
+   Replace the UIDs below with real Firebase Auth UIDs before
+   deploying. Do NOT create an `isAdmin` field on user documents
+   that users can write to themselves — that would let anyone
+   grant themselves admin by editing their own profile.
    ============================================================ */
 
-/* ============================================================
-   MLIMI MARKET — STORAGE SECURITY RULES
-   ------------------------------------------------------------
-   Controls who can upload/read produce photos. This is the
-   main cost-control point: without these rules, Storage is
-   either wide open (anyone can upload anything, unlimited size,
-   unlimited volume — a direct cost and abuse risk) or wrongly
-   locked (nobody can upload at all).
+function isAdmin() {
+  return request.auth != null && request.auth.uid in [
+    // "PASTE_YOUR_FIREBASE_UID_HERE"
+  ];
+}
 
-   Path convention: listing-images/{uid}/{filename}
-   A user can only write inside their own {uid} folder. Reading
-   images is public (produce photos need to be visible to any
-   buyer browsing, logged in or not).
-   ============================================================ */
+function isSignedIn() {
+  return request.auth != null;
+}
 
-service firebase.storage {
-  match /b/{bucket}/o {
+function isOwner(userId) {
+  return isSignedIn() && request.auth.uid == userId;
+}
 
-    match /listing-images/{userId}/{fileName} {
-      allow read: if true;
+service cloud.firestore {
+  match /databases/{database}/documents {
 
-      allow write: if request.auth != null
-                   && request.auth.uid == userId
-                   // Hard server-side size cap as a backstop — the app
-                   // compresses client-side to well under this, but a
-                   // rule should never rely only on client behavior.
-                   && request.resource.size < 3 * 1024 * 1024
-                   && request.resource.contentType.matches('image/.*');
-
-      allow delete: if request.auth != null && request.auth.uid == userId;
+    /* ---------- users ---------- */
+    match /users/{userId} {
+      allow read: if true; // profiles are public (seller name, district, verification badge)
+      allow create: if isOwner(userId)
+                    // a user cannot create their own profile already verified
+                    && request.resource.data.isVerified == false;
+      allow update: if isOwner(userId)
+                    // isVerified can never be changed by the user themselves —
+                    // only admin, via the Firebase console or a trusted backend
+                    // process, can flip this. This is what makes "Verified
+                    // Seller" trustworthy instead of a self-claimed label.
+                    && request.resource.data.isVerified == resource.data.isVerified
+                    || isAdmin();
+      allow delete: if isOwner(userId) || isAdmin();
     }
 
-    match /avatars/{userId}/{fileName} {
+    /* ---------- categories ---------- */
+    match /categories/{categoryId} {
       allow read: if true;
-      allow write: if request.auth != null
-                   && request.auth.uid == userId
-                   && request.resource.size < 2 * 1024 * 1024
-                   && request.resource.contentType.matches('image/.*');
-      allow delete: if request.auth != null && request.auth.uid == userId;
+      allow write: if isAdmin();
     }
 
-    // Deny everything else by default
-    match /{allPaths=**} {
-      allow read, write: if false;
+    /* ---------- listings ---------- */
+    match /listings/{listingId} {
+      // Public can read approved+available listings; sellers can
+      // read their own listings regardless of approval status.
+      allow read: if resource.data.isApproved == true
+                  || (isSignedIn() && resource.data.sellerId == request.auth.uid)
+                  || isAdmin();
+
+      allow create: if isSignedIn()
+                    && request.resource.data.sellerId == request.auth.uid
+                    // sellers cannot publish already-approved listings —
+                    // moderation queue must approve them
+                    && request.resource.data.isApproved == false;
+
+      allow update: if isAdmin()
+                    || (
+                      isSignedIn()
+                      && resource.data.sellerId == request.auth.uid
+                      // an owner can edit their own listing but cannot
+                      // grant themselves approval
+                      && request.resource.data.isApproved == resource.data.isApproved
+                    );
+
+      allow delete: if isAdmin()
+                    || (isSignedIn() && resource.data.sellerId == request.auth.uid);
+    }
+
+    /* ---------- favourites ---------- */
+    match /favourites/{favId} {
+      allow read: if isSignedIn() && resource.data.userId == request.auth.uid;
+      allow create: if isSignedIn() && request.resource.data.userId == request.auth.uid;
+      allow delete: if isSignedIn() && resource.data.userId == request.auth.uid;
+    }
+
+    /* ---------- reports ---------- */
+    match /reports/{reportId} {
+      allow create: if isSignedIn() && request.resource.data.reporterId == request.auth.uid;
+      allow read: if isAdmin()
+                  || (isSignedIn() && resource.data.reporterId == request.auth.uid);
+      allow update, delete: if isAdmin();
+    }
+
+    /* ---------- enquiries ---------- */
+    match /enquiries/{enquiryId} {
+      allow create: if isSignedIn() && request.resource.data.buyerId == request.auth.uid;
+      allow read: if isAdmin()
+                  || (isSignedIn() && (
+                       resource.data.buyerId == request.auth.uid
+                       || resource.data.sellerId == request.auth.uid
+                     ));
+      allow update, delete: if isAdmin();
+    }
+
+    /* ---------- wanted_requests (future — not built yet) ----------
+       Modeled now so the collection name and field shape are
+       agreed. Rules follow the same ownership pattern as listings
+       once this ships: buyer owns their own request, public can
+       read open ones, admin moderates.
+    ------------------------------------------------------------ */
+    match /wanted_requests/{requestId} {
+      allow read, write: if false; // locked until this feature is built
     }
   }
 }
