@@ -14,10 +14,15 @@
    MVP, worth revisiting if it becomes confusing.
    ============================================================ */
 
-const LISTINGS_PAGE_SIZE = 20;
+const LISTINGS_FETCH_CAP = 200; // safety cap on the single Firestore query below
 
 /* ---------- Categories ---------- */
-
+/**
+ * Firestore-backed categories are NOT used for MVP — see
+ * categories.js for the static CATEGORIES list actually used by
+ * the app. This function is kept only in case category
+ * management is ever moved into Firestore/admin.html later.
+ */
 async function getActiveCategories() {
   const snap = await db.collection("categories")
     .where("isActive", "==", true)
@@ -30,43 +35,54 @@ async function getActiveCategories() {
 
 /**
  * Fetches approved, available listings for public browsing.
- * filters: { categoryId, district, sort }
- * sort: "newest" | "price_asc" | "price_desc" | "quantity_desc"
+ *
+ * DESIGN NOTE: Firestore requires a composite index for any query
+ * that combines multiple `where` filters with an `orderBy`. If
+ * category, district, and each sort option were all applied at
+ * the query level, nearly every filter combination would need its
+ * own manually-created index in the Firebase Console — impractical
+ * for a one-person, phone-only setup. Instead, Firestore always
+ * runs the exact same query (approved + available, newest first),
+ * which needs exactly one composite index, ever. Category/district
+ * filtering and alternate sorting happen here in JavaScript
+ * afterward. At MVP scale (dozens to low hundreds of listings)
+ * this costs nothing noticeable; if the marketplace grows into the
+ * thousands, this is the first place to revisit.
+ *
+ * filters: { categorySlug, district, sort }
+ * sort: "newest" (default) | "price_asc" | "price_desc" | "quantity_desc"
  */
-async function getListings(filters = {}, lastDoc = null) {
-  let q = db.collection("listings")
+async function getListings(filters = {}) {
+  const snap = await db.collection("listings")
     .where("isApproved", "==", true)
-    .where("status", "==", "available");
+    .where("status", "==", "available")
+    .orderBy("createdAt", "desc")
+    .limit(LISTINGS_FETCH_CAP)
+    .get();
 
-  if (filters.categoryId) {
-    q = q.where("categoryId", "==", filters.categoryId);
+  let items = snap.docs.map((d) => ({ id: d.id, ...d.data() }));
+
+  if (filters.categorySlug) {
+    items = items.filter((l) => l.categorySlug === filters.categorySlug);
   }
   if (filters.district) {
-    q = q.where("district", "==", filters.district);
+    items = items.filter((l) => l.district === filters.district);
   }
 
   switch (filters.sort) {
     case "price_asc":
-      q = q.orderBy("price", "asc");
+      items.sort((a, b) => a.price - b.price);
       break;
     case "price_desc":
-      q = q.orderBy("price", "desc");
+      items.sort((a, b) => b.price - a.price);
       break;
     case "quantity_desc":
-      q = q.orderBy("quantity", "desc");
+      items.sort((a, b) => b.quantity - a.quantity);
       break;
-    default:
-      q = q.orderBy("createdAt", "desc");
+    // default: already newest-first from the query above
   }
 
-  q = q.limit(LISTINGS_PAGE_SIZE);
-  if (lastDoc) q = q.startAfter(lastDoc);
-
-  const snap = await q.get();
-  return {
-    items: snap.docs.map((d) => ({ id: d.id, ...d.data() })),
-    lastDoc: snap.docs.length ? snap.docs[snap.docs.length - 1] : null,
-  };
+  return items;
 }
 
 /**
@@ -245,7 +261,7 @@ async function updateUserProfile(userId, updates) {
 
    wanted_requests document shape:
    {
-     buyerId, productName, categoryId, quantity, unit,
+     buyerId, productName, categorySlug, quantity, unit,
      district, location, maxPrice, priceType,
      neededBy, status: "open" | "fulfilled" | "expired",
      createdAt
@@ -253,8 +269,8 @@ async function updateUserProfile(userId, updates) {
 
    Eventual matching engine (Cloud Function, NOT client-side):
    on listing create/update -> query wanted_requests where
-   status == "open" and categoryId/district match -> notify
-   matching buyers. Keeping categoryId/district/quantity/price
+   status == "open" and categorySlug/district match -> notify
+   matching buyers. Keeping categorySlug/district/quantity/price
    field names consistent between listings and wanted_requests
    now is what makes that diff cheap later.
 ------------------------------------------------------------ */
