@@ -126,7 +126,13 @@ async function createListing(listingData, sellerProfile) {
   const payload = {
     ...listingData,
     sellerId: sellerProfile.id,
-    sellerName: sellerProfile.fullName || "Farmer",
+    // NOTE: no "|| 'Farmer'" fallback here on purpose. firestore.rules
+    // now pins sellerName to exactly match users/{uid}.fullName on
+    // every listing write — if this sent a different fallback string,
+    // the write would be rejected whenever fullName happens to be
+    // empty. Any "Farmer" display fallback belongs at render time
+    // instead (see listing.html), not in the stored value.
+    sellerName: sellerProfile.fullName || "",
     sellerVerified: !!sellerProfile.isVerified,
     status: "available",
     isApproved: false,
