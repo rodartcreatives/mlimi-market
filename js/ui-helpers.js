@@ -212,6 +212,26 @@ function priceTypeLabel(priceType) {
   return labels[priceType] || "";
 }
 
+/* ---------- HTML escaping ---------- */
+/**
+ * Escapes a value for safe insertion into markup via innerHTML.
+ * MUST wrap every field that originates from user input —
+ * productName, description, district, sellerName, phone, etc. —
+ * before it's dropped into a template string. Without this, a
+ * listing's productName becomes a stored XSS vector: it renders
+ * on the public market page and listing detail page for every
+ * visitor, logged in or not.
+ */
+function escapeHtml(value) {
+  if (value === null || value === undefined) return "";
+  return String(value)
+    .replace(/&/g, "&amp;")
+    .replace(/</g, "&lt;")
+    .replace(/>/g, "&gt;")
+    .replace(/"/g, "&quot;")
+    .replace(/'/g, "&#39;");
+}
+
 /* ---------- Skeleton grid ---------- */
 /**
  * Renders placeholder cards into a listing-grid while data loads.
@@ -249,8 +269,17 @@ function listingCardHTML(listing, opts) {
   const classAttr = `listing-card${options.extraClass ? ` ${options.extraClass}` : ""}`;
   const styleAttr = options.style ? ` style="${options.style}"` : "";
 
+  // Every one of these comes from a user-submitted listing doc —
+  // must be escaped before it goes into innerHTML below.
+  const safeId = encodeURIComponent(listing.id);
+  const safeProductName = escapeHtml(listing.productName || "Untitled listing");
+  const safeProductNameForAlt = escapeHtml(listing.productName || "Produce");
+  const safeDistrict = escapeHtml(listing.district || "");
+  const safeUnit = escapeHtml(listing.unit || "");
+  const safeQuantity = listing.quantity != null ? escapeHtml(listing.quantity) : "";
+
   const imageHTML = image
-    ? `<img class="listing-card__image" src="${image}" alt="${listing.productName || "Produce"}" loading="lazy">`
+    ? `<img class="listing-card__image" src="${escapeHtml(image)}" alt="${safeProductNameForAlt}" loading="lazy">`
     : `<div class="listing-card__image" style="display:flex;align-items:center;justify-content:center;color:var(--color-line);">${icon(category ? category.icon : "sprout", 32)}</div>`;
 
   const verifiedBadge = listing.sellerVerified
@@ -258,17 +287,17 @@ function listingCardHTML(listing, opts) {
     : "";
 
   return `
-    <a href="listing.html?id=${listing.id}" class="${classAttr}"${styleAttr}>
+    <a href="listing.html?id=${safeId}" class="${classAttr}"${styleAttr}>
       <div style="position:relative;">
         ${imageHTML}
         ${verifiedBadge}
       </div>
       <div class="listing-card__body">
-        <div class="listing-card__title">${listing.productName || "Untitled listing"}</div>
+        <div class="listing-card__title">${safeProductName}</div>
         <div class="price">${formatMoney(listing.price)} <span style="font-weight:500;color:var(--color-ink-soft);font-size:12px;">${priceTypeLabel(listing.priceType)}</span></div>
         <div class="listing-card__meta">
-          <span class="meta-item">${icon("mapPin", 13)}${listing.district || ""}</span>
-          <span class="meta-item">${listing.quantity != null ? listing.quantity : ""} ${listing.unit || ""}</span>
+          <span class="meta-item">${icon("mapPin", 13)}${safeDistrict}</span>
+          <span class="meta-item">${safeQuantity} ${safeUnit}</span>
         </div>
       </div>
     </a>
