@@ -1,0 +1,284 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
+<title>Create account — Mlimi Market</title>
+<meta name="theme-color" content="#123329">
+
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Fraunces:wght@600;700&family=Inter:wght@400;500;600;700&family=JetBrains+Mono:wght@500;600&display=swap" rel="stylesheet">
+
+<link rel="stylesheet" href="css/shared.css">
+
+<style>
+  body { padding-bottom: var(--space-8); } /* no bottom nav on this page */
+  .auth-header { padding: var(--space-8) 0 var(--space-6); text-align: center; }
+  .auth-header h1 { margin-bottom: var(--space-2); }
+  .auth-header p { color: var(--color-ink-soft); font-size: 14px; }
+
+  .field-password { position: relative; }
+  .field-password input { padding-right: 44px; }
+  .field-password-toggle {
+    position: absolute;
+    right: 4px;
+    top: 4px;
+    width: 36px;
+    height: 36px;
+    background: transparent;
+    border: none;
+    color: var(--color-ink-soft);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    border-radius: var(--radius-sm);
+  }
+
+  .divider {
+    display: flex;
+    align-items: center;
+    gap: var(--space-3);
+    color: var(--color-ink-soft);
+    font-size: 13px;
+    margin: var(--space-5) 0;
+  }
+  .divider::before, .divider::after {
+    content: '';
+    flex: 1;
+    height: 1px;
+    background: var(--color-line);
+  }
+
+  .auth-footer { text-align: center; font-size: 14px; color: var(--color-ink-soft); margin-top: var(--space-6); }
+  .auth-footer a { font-weight: 600; }
+</style>
+</head>
+<body>
+
+<div class="page">
+
+  <header class="auth-header">
+    <h1 class="font-display">Create your account</h1>
+    <p>Join farmers and buyers trading across Malawi.</p>
+  </header>
+
+  <form id="registerForm" novalidate>
+
+    <div class="field">
+      <label for="fullNameInput">Full name</label>
+      <input type="text" id="fullNameInput" required autocomplete="name">
+    </div>
+
+    <div class="field">
+      <label for="emailInput">Email</label>
+      <input type="email" id="emailInput" required autocomplete="email">
+    </div>
+
+    <div class="field">
+      <label for="phoneInput">Phone number</label>
+      <input type="tel" id="phoneInput" placeholder="e.g. 0991 234 567" required autocomplete="tel">
+    </div>
+
+    <div class="field">
+      <label>I am a...</label>
+      <div class="radio-pill-group">
+        <label class="radio-pill">
+          <input type="radio" name="role" value="farmer" required>
+          <span>Farmer — I'm selling produce</span>
+        </label>
+        <label class="radio-pill">
+          <input type="radio" name="role" value="buyer">
+          <span>Buyer — I'm looking to buy</span>
+        </label>
+        <label class="radio-pill">
+          <input type="radio" name="role" value="both">
+          <span>Both</span>
+        </label>
+      </div>
+    </div>
+
+    <div class="field">
+      <label for="districtSelect">District</label>
+      <select id="districtSelect" required>
+        <option value="" disabled selected>Choose your district</option>
+      </select>
+    </div>
+
+    <div class="field field-password">
+      <label for="passwordInput">Password</label>
+      <input type="password" id="passwordInput" minlength="6" required autocomplete="new-password">
+      <button type="button" class="field-password-toggle" id="passwordToggle" aria-label="Show password"></button>
+      <div class="field-hint">At least 6 characters.</div>
+    </div>
+
+    <div class="field field-password">
+      <label for="confirmPasswordInput">Confirm password</label>
+      <input type="password" id="confirmPasswordInput" minlength="6" required autocomplete="new-password">
+      <button type="button" class="field-password-toggle" id="confirmPasswordToggle" aria-label="Show password"></button>
+    </div>
+
+    <button type="submit" class="btn btn-primary mt-2" id="registerSubmitBtn">Create account</button>
+  </form>
+
+  <div class="divider">or</div>
+
+  <button type="button" class="btn btn-outline" id="googleBtn">Continue with Google</button>
+
+  <p class="auth-footer">Already have an account? <a href="login.html" id="loginLink">Log in</a></p>
+
+</div>
+
+<!-- Firebase (compat SDK — plain global objects, no bundler needed) -->
+<script src="https://www.gstatic.com/firebasejs/10.13.1/firebase-app-compat.js"></script>
+<script src="https://www.gstatic.com/firebasejs/10.13.1/firebase-firestore-compat.js"></script>
+<script src="https://www.gstatic.com/firebasejs/10.13.1/firebase-auth-compat.js"></script>
+
+<script src="js/firebase-config.js"></script>
+<script src="js/auth.js"></script>
+<script src="js/icons.js"></script>
+<script src="js/categories.js"></script>
+<script src="js/ui-helpers.js"></script>
+
+<script>
+  /* ---------- Redirect destination handling ---------- */
+  function getRedirectDestination() {
+    const dest = new URLSearchParams(location.search).get("redirect");
+    return dest ? decodeURIComponent(dest) : "index.html";
+  }
+
+  // Carry the redirect param through to login.html if the user
+  // decides to log in instead of registering.
+  (function preserveRedirectOnLoginLink() {
+    const dest = new URLSearchParams(location.search).get("redirect");
+    if (dest) {
+      document.getElementById("loginLink").href = `login.html?redirect=${dest}`;
+    }
+  })();
+
+  /* ---------- Friendly error messages ---------- */
+  function friendlyAuthError(code) {
+    const messages = {
+      "auth/email-already-in-use": "That email is already registered. Try logging in instead.",
+      "auth/invalid-email": "That doesn't look like a valid email address.",
+      "auth/weak-password": "Password is too weak — use at least 6 characters.",
+      "auth/network-request-failed": "Network error. Check your connection and try again.",
+      "auth/too-many-requests": "Too many attempts. Please wait a moment and try again.",
+    };
+    return messages[code] || "Something went wrong. Please try again.";
+  }
+
+  /* ---------- District select ---------- */
+  const districtSelect = document.getElementById("districtSelect");
+  MALAWI_DISTRICTS.forEach((d) => {
+    const opt = document.createElement("option");
+    opt.value = d;
+    opt.textContent = d;
+    districtSelect.appendChild(opt);
+  });
+
+  /* ---------- Password visibility toggles ---------- */
+  function wireToggle(toggleId, inputId) {
+    const btn = document.getElementById(toggleId);
+    const input = document.getElementById(inputId);
+    let visible = false;
+    btn.innerHTML = icon("eye", 18);
+    btn.addEventListener("click", () => {
+      visible = !visible;
+      input.type = visible ? "text" : "password";
+      btn.innerHTML = icon(visible ? "eyeOff" : "eye", 18);
+      btn.setAttribute("aria-label", visible ? "Hide password" : "Show password");
+    });
+  }
+  wireToggle("passwordToggle", "passwordInput");
+  wireToggle("confirmPasswordToggle", "confirmPasswordInput");
+
+  /* ---------- Register submit ---------- */
+  document.getElementById("registerForm").addEventListener("submit", async (e) => {
+    e.preventDefault();
+    const form = e.target;
+    if (!form.checkValidity()) {
+      form.reportValidity();
+      return;
+    }
+
+    const fullName = document.getElementById("fullNameInput").value.trim();
+    const email = document.getElementById("emailInput").value.trim();
+    const phone = document.getElementById("phoneInput").value.trim();
+    const role = document.querySelector('input[name="role"]:checked')?.value || "";
+    const district = districtSelect.value;
+    const password = document.getElementById("passwordInput").value;
+    const confirmPassword = document.getElementById("confirmPasswordInput").value;
+
+    if (password !== confirmPassword) {
+      showToast("Passwords don't match", "error");
+      return;
+    }
+
+    const submitBtn = document.getElementById("registerSubmitBtn");
+    submitBtn.disabled = true;
+    submitBtn.textContent = "Creating account...";
+
+    try {
+      const user = await registerWithEmail(email, password);
+      await user.updateProfile({ displayName: fullName });
+
+      await db.collection("users").doc(user.uid).set({
+        fullName,
+        email,
+        phone,
+        role,
+        district,
+        location: "",
+        bio: "",
+        avatarUrl: "",
+        isVerified: false,
+        whatsappPublic: false,
+        createdAt: firebase.firestore.FieldValue.serverTimestamp(),
+        updatedAt: firebase.firestore.FieldValue.serverTimestamp(),
+      });
+
+      window.location.href = getRedirectDestination();
+    } catch (err) {
+      console.error("Registration failed:", err);
+      showToast(friendlyAuthError(err.code), "error");
+      submitBtn.disabled = false;
+      submitBtn.textContent = "Create account";
+    }
+  });
+
+  /* ---------- Google sign-in ---------- */
+  document.getElementById("googleBtn").addEventListener("click", () => {
+    signInWithGoogle(); // navigates away — nothing to await here
+  });
+
+  /* ---------- Init: handle Google redirect return, or bounce
+     already-logged-in users straight to their destination ---------- */
+  async function init() {
+    try {
+      const googleUser = await handleGoogleRedirectResult();
+      if (googleUser) {
+        const { profile, isNew } = await ensureUserProfile(googleUser);
+        if (isNew || profileNeedsCompletion(profile)) {
+          window.location.href = "profile.html?complete=1";
+        } else {
+          window.location.href = getRedirectDestination();
+        }
+        return;
+      }
+    } catch (err) {
+      console.error("Google sign-in failed:", err);
+      showToast("Google sign-in failed. Please try again.", "error");
+    }
+
+    const existingUser = await onAuthReady();
+    if (existingUser) {
+      window.location.href = getRedirectDestination();
+    }
+  }
+
+  init();
+</script>
+
+</body>
+</html>
