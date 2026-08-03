@@ -141,10 +141,15 @@
 <script src="js/ui-helpers.js"></script>
 
 <script>
-  /* ---------- Redirect destination handling ---------- */
+  /* ---------- Redirect destination handling ----------
+     sanitizeRedirect() (defined in js/auth.js) allow-lists the
+     "redirect" param against known page filenames before it's
+     ever used in window.location.href, closing an open-redirect
+     that could otherwise send someone through a real login/register
+     on this domain and then off to a phishing page. */
   function getRedirectDestination() {
     const dest = new URLSearchParams(location.search).get("redirect");
-    return dest ? decodeURIComponent(dest) : "index.html";
+    return sanitizeRedirect(dest);
   }
 
   // Carry the redirect param through to login.html if the user
@@ -152,7 +157,8 @@
   (function preserveRedirectOnLoginLink() {
     const dest = new URLSearchParams(location.search).get("redirect");
     if (dest) {
-      document.getElementById("loginLink").href = `login.html?redirect=${dest}`;
+      const safeDest = sanitizeRedirect(dest);
+      document.getElementById("loginLink").href = `login.html?redirect=${encodeURIComponent(safeDest)}`;
     }
   })();
 
