@@ -1,0 +1,443 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
+<title>Profile — Mlimi Market</title>
+<meta name="theme-color" content="#123329">
+
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Fraunces:wght@600;700&family=Inter:wght@400;500;600;700&family=JetBrains+Mono:wght@500;600&display=swap" rel="stylesheet">
+
+<link rel="stylesheet" href="css/shared.css">
+
+<style>
+  /* Page-specific styles for the profile screen only */
+  .profile-header {
+    display: flex;
+    align-items: center;
+    gap: var(--space-4);
+    padding: var(--space-4) 0 var(--space-6);
+  }
+  .profile-avatar-wrap { position: relative; flex-shrink: 0; }
+  .profile-avatar {
+    width: 72px;
+    height: 72px;
+    border-radius: 50%;
+    background: var(--color-parchment-dark);
+    color: var(--color-green-700);
+    font-family: var(--font-display);
+    font-weight: 600;
+    font-size: 22px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    overflow: hidden;
+  }
+  .profile-avatar img { width: 100%; height: 100%; object-fit: cover; }
+  .profile-avatar-edit {
+    position: absolute;
+    right: -2px;
+    bottom: -2px;
+    width: 28px;
+    height: 28px;
+    border-radius: 50%;
+    background: var(--color-green-700);
+    color: var(--color-white);
+    border: 2px solid var(--color-parchment);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+  }
+  .profile-name-block { min-width: 0; }
+  .profile-name-block h1 {
+    font-size: 20px;
+    display: flex;
+    align-items: center;
+    flex-wrap: wrap;
+    gap: 6px;
+  }
+  .profile-role-sub { font-size: 13px; color: var(--color-ink-soft); margin-top: 2px; }
+  .profile-joined-sub { font-size: 12px; color: var(--color-ink-soft); margin-top: 2px; }
+
+  .complete-banner {
+    background: #FBF3E0;
+    color: var(--color-soil-600);
+    border-radius: var(--radius-md);
+    padding: var(--space-3) var(--space-4);
+    margin-bottom: var(--space-5);
+    font-size: 13px;
+  }
+  .complete-banner strong {
+    display: block;
+    color: var(--color-green-900);
+    font-size: 14px;
+    margin-bottom: 2px;
+  }
+
+  /* Read-only email field — styled so it visibly reads as
+     non-editable rather than looking like a broken input. */
+  .field input[readonly] {
+    color: var(--color-ink-soft);
+    background: var(--color-parchment-dark);
+  }
+
+  .profile-footer {
+    margin-top: var(--space-8);
+    padding-top: var(--space-5);
+    border-top: 1px solid var(--color-line);
+  }
+</style>
+</head>
+<body>
+
+<div class="page">
+
+  <div class="complete-banner" id="completeBanner" hidden>
+    <strong>Finish setting up your profile</strong>
+    Add your phone, role, and district so buyers and farmers can reach you.
+  </div>
+
+  <header class="profile-header">
+    <div class="profile-avatar-wrap">
+      <div class="profile-avatar" id="avatarCircle"></div>
+      <button type="button" class="profile-avatar-edit" id="avatarEditBtn" aria-label="Change profile photo"></button>
+      <input type="file" id="avatarInput" accept="image/*" hidden>
+    </div>
+    <div class="profile-name-block">
+      <h1 class="font-display" id="profileNameText">Your profile</h1>
+      <div class="profile-role-sub" id="profileRoleText"></div>
+      <div class="profile-joined-sub" id="profileJoinedText" hidden></div>
+    </div>
+  </header>
+
+  <form id="profileForm" novalidate>
+
+    <div class="field">
+      <label for="fullNameInput">Full name</label>
+      <input type="text" id="fullNameInput" required autocomplete="name">
+    </div>
+
+    <div class="field">
+      <label for="emailInput">Email</label>
+      <input type="email" id="emailInput" readonly tabindex="-1">
+      <div class="field-hint">This is the email on your account and can't be changed here.</div>
+    </div>
+
+    <div class="field">
+      <label for="phoneInput">Phone number</label>
+      <input type="tel" id="phoneInput" placeholder="e.g. 0991 234 567" required autocomplete="tel">
+    </div>
+
+    <div class="field">
+      <label>I am a...</label>
+      <div class="radio-pill-group">
+        <label class="radio-pill">
+          <input type="radio" name="role" value="farmer" required>
+          <span>Farmer — I'm selling produce</span>
+        </label>
+        <label class="radio-pill">
+          <input type="radio" name="role" value="buyer">
+          <span>Buyer — I'm looking to buy</span>
+        </label>
+        <label class="radio-pill">
+          <input type="radio" name="role" value="both">
+          <span>Both</span>
+        </label>
+      </div>
+    </div>
+
+    <div class="field">
+      <label for="districtSelect">District</label>
+      <select id="districtSelect" required>
+        <option value="" disabled selected>Choose your district</option>
+      </select>
+    </div>
+
+    <div class="field">
+      <label for="locationInput">Specific location (optional)</label>
+      <input type="text" id="locationInput" placeholder="e.g. Area 25, near the market">
+    </div>
+
+    <div class="field">
+      <label for="bioInput">About you (optional)</label>
+      <textarea id="bioInput" placeholder="Tell buyers or farmers a bit about yourself"></textarea>
+    </div>
+
+    <div class="field toggle-row">
+      <label for="whatsappToggle" class="sheet__section-label" style="margin-bottom:0;">
+        Make WhatsApp &amp; phone public
+      </label>
+      <label class="toggle">
+        <input type="checkbox" id="whatsappToggle">
+        <span class="toggle__track"></span>
+      </label>
+    </div>
+    <div class="field-hint" style="margin-top:-12px;margin-bottom:var(--space-4);" id="whatsappHint">
+      Buyers will see a direct WhatsApp and call button on your listings instead of having to message you first.
+    </div>
+
+    <button type="submit" class="btn btn-primary mt-2" id="profileSaveBtn">Save changes</button>
+  </form>
+
+  <div class="profile-footer">
+    <button type="button" class="btn btn-outline" id="logoutBtn">Log out</button>
+  </div>
+
+</div>
+
+<!-- Firebase (compat SDK — plain global objects, no bundler needed) -->
+<script src="https://www.gstatic.com/firebasejs/10.13.1/firebase-app-compat.js"></script>
+<script src="https://www.gstatic.com/firebasejs/10.13.1/firebase-firestore-compat.js"></script>
+<script src="https://www.gstatic.com/firebasejs/10.13.1/firebase-auth-compat.js"></script>
+
+<script src="js/firebase-config.js"></script>
+<script src="js/auth.js"></script>
+<script src="js/icons.js"></script>
+<script src="js/categories.js"></script>
+<script src="js/cloudinary-config.js"></script>
+<script src="js/firestore-helpers.js"></script>
+<script src="js/ui-helpers.js"></script>
+<script src="js/nav.js"></script>
+
+<script>
+  const params = new URLSearchParams(location.search);
+  const isCompleteMode = params.get("complete") === "1";
+  // sanitizeRedirect() (js/auth.js) allow-lists this against known
+  // page filenames — same protection used on login.html/register.html —
+  // so a crafted ?redirect= on this URL can't bounce someone off-site
+  // right after they finish setting up their account.
+  const redirectAfterComplete = sanitizeRedirect(params.get("redirect"));
+
+  let currentUser = null;
+  let currentProfile = null;
+  let avatarUploading = false;
+
+  document.getElementById("avatarEditBtn").innerHTML = icon("camera", 14);
+
+  /* ---------- District select ---------- */
+  const districtSelect = document.getElementById("districtSelect");
+  MALAWI_DISTRICTS.forEach((d) => {
+    const opt = document.createElement("option");
+    opt.value = d;
+    opt.textContent = d;
+    districtSelect.appendChild(opt);
+  });
+
+  /* ---------- WhatsApp toggle: only meaningful with a phone on file ---------- */
+  const phoneInputEl = document.getElementById("phoneInput");
+  const whatsappToggleEl = document.getElementById("whatsappToggle");
+  function syncWhatsappToggleAvailability() {
+    const hasPhone = !!phoneInputEl.value.trim();
+    whatsappToggleEl.disabled = !hasPhone;
+    if (!hasPhone) whatsappToggleEl.checked = false;
+    document.getElementById("whatsappHint").textContent = hasPhone
+      ? "Buyers will see a direct WhatsApp and call button on your listings instead of having to message you first."
+      : "Add a phone number above to enable this.";
+  }
+  phoneInputEl.addEventListener("input", syncWhatsappToggleAvailability);
+
+  /* ---------- Helpers ---------- */
+  function initialsFrom(name) {
+    const raw = (name || "?").trim().split(/\s+/).slice(0, 2).map((w) => w[0].toUpperCase()).join("");
+    return escapeHtml(raw);
+  }
+
+  function roleLabel(role) {
+    const labels = { farmer: "Farmer", buyer: "Buyer", both: "Farmer & Buyer" };
+    return labels[role] || "Role not set";
+  }
+
+  function renderAvatar() {
+    const wrap = document.getElementById("avatarCircle");
+    if (avatarUploading) {
+      wrap.innerHTML = `<div class="spinner" style="width:20px;height:20px;border-width:2px;"></div>`;
+      return;
+    }
+    const url = currentProfile && currentProfile.avatarUrl;
+    wrap.innerHTML = url
+      ? `<img src="${escapeHtml(url)}" alt="Your profile photo">`
+      : initialsFrom(currentProfile && currentProfile.fullName);
+  }
+
+  function renderHeader(profile) {
+    const safeName = escapeHtml(profile.fullName || "Your profile");
+    document.getElementById("profileNameText").innerHTML = `${safeName}${
+      profile.isVerified
+        ? ` <span class="badge badge-verified">${icon("badgeCheck", 12)}Verified</span>`
+        : ""
+    }`;
+
+    // textContent below — no escaping needed, it's assigned as
+    // text, not parsed as markup.
+    document.getElementById("profileRoleText").textContent =
+      [roleLabel(profile.role), profile.district].filter(Boolean).join(" · ");
+
+    // Guard against the moment right after profile creation where
+    // createdAt is still a serverTimestamp() sentinel rather than a
+    // resolved Timestamp (no .toDate()) — avoids showing "Invalid
+    // Date" on a brand-new account's first visit to this page.
+    const joinedEl = document.getElementById("profileJoinedText");
+    if (profile.createdAt && typeof profile.createdAt.toDate === "function") {
+      joinedEl.textContent = `Joined ${formatRelativeTime(profile.createdAt)}`;
+      joinedEl.hidden = false;
+    } else {
+      joinedEl.hidden = true;
+    }
+  }
+
+  function populateForm(profile) {
+    document.getElementById("fullNameInput").value = profile.fullName || "";
+    document.getElementById("emailInput").value = profile.email || "";
+    phoneInputEl.value = profile.phone || "";
+    document.getElementById("locationInput").value = profile.location || "";
+    document.getElementById("bioInput").value = profile.bio || "";
+    whatsappToggleEl.checked = !!profile.whatsappPublic;
+
+    if (profile.role) {
+      const radio = document.querySelector(`input[name="role"][value="${profile.role}"]`);
+      if (radio) radio.checked = true;
+    }
+    if (profile.district) districtSelect.value = profile.district;
+
+    syncWhatsappToggleAvailability();
+  }
+
+  /* ---------- Avatar upload ---------- */
+  document.getElementById("avatarEditBtn").addEventListener("click", () => {
+    document.getElementById("avatarInput").click();
+  });
+
+  document.getElementById("avatarInput").addEventListener("change", async (e) => {
+    const file = e.target.files && e.target.files[0];
+    e.target.value = ""; // allow re-selecting the same file later
+    if (!file) return;
+
+    const validationError = validateImageFile(file);
+    if (validationError) {
+      showToast(validationError, "error");
+      return;
+    }
+
+    avatarUploading = true;
+    renderAvatar();
+
+    try {
+      // Smaller max dimension than listing photos — this is a
+      // small circular avatar, no need for a large source image.
+      const blob = await compressImage(file, 500, 0.8);
+      // NOTE: reuses the same Cloudinary unsigned preset as listing
+      // photos (see cloudinary-config.js). Since that preset's
+      // folder restriction is set in the Cloudinary dashboard, this
+      // avatar will land in the same folder as listing photos —
+      // that's a known, harmless MVP simplification, not a bug. If
+      // you want avatars organized separately later, add a second
+      // unsigned preset in Cloudinary and swap the upload call here.
+      const url = await uploadListingImage(blob);
+      await updateUserProfile(currentUser.uid, { avatarUrl: url });
+      currentProfile = { ...currentProfile, avatarUrl: url };
+      showToast("Profile photo updated");
+    } catch (err) {
+      console.error("Avatar upload failed:", err);
+      showToast("Couldn't upload photo. Try again.", "error");
+    } finally {
+      avatarUploading = false;
+      renderAvatar();
+    }
+  });
+
+  /* ---------- Save profile ---------- */
+  document.getElementById("profileForm").addEventListener("submit", async (e) => {
+    e.preventDefault();
+    const form = e.target;
+    if (!form.checkValidity()) {
+      form.reportValidity();
+      return;
+    }
+
+    // isVerified is intentionally never included here — it can't be
+    // set by a user anyway (firestore.rules blocks it on update),
+    // but keeping it out of this object entirely makes that
+    // intent obvious on read, not just enforced silently server-side.
+    const updates = {
+      fullName: document.getElementById("fullNameInput").value.trim(),
+      phone: phoneInputEl.value.trim(),
+      role: document.querySelector('input[name="role"]:checked')?.value || "",
+      district: districtSelect.value,
+      location: document.getElementById("locationInput").value.trim(),
+      bio: document.getElementById("bioInput").value.trim(),
+      whatsappPublic: whatsappToggleEl.checked,
+    };
+
+    const submitBtn = document.getElementById("profileSaveBtn");
+    submitBtn.disabled = true;
+    submitBtn.textContent = "Saving...";
+
+    try {
+      await updateUserProfile(currentUser.uid, updates);
+
+      // Best-effort sync so Firebase Auth's own displayName matches —
+      // not critical if it fails, so it's not awaited into the
+      // try/catch flow blocking the save.
+      if (currentUser.updateProfile) {
+        currentUser.updateProfile({ displayName: updates.fullName }).catch(() => {});
+      }
+
+      currentProfile = { ...currentProfile, ...updates };
+
+      if (isCompleteMode) {
+        window.location.href = redirectAfterComplete;
+        return;
+      }
+
+      renderHeader(currentProfile);
+      showToast("Profile updated");
+    } catch (err) {
+      console.error("Failed to update profile:", err);
+      showToast("Couldn't save your profile. Try again.", "error");
+    } finally {
+      submitBtn.disabled = false;
+      submitBtn.textContent = isCompleteMode ? "Continue" : "Save changes";
+    }
+  });
+
+  /* ---------- Logout ---------- */
+  document.getElementById("logoutBtn").addEventListener("click", async () => {
+    if (!confirm("Log out of Mlimi Market?")) return;
+    await logout(); // navigates to index.html
+  });
+
+  /* ---------- Init ---------- */
+  async function init() {
+    const user = await requireAuth(); // redirects to login.html?redirect=profile.html if signed out
+    if (!user) return;
+
+    currentUser = user;
+
+    try {
+      // Safety net, same pattern as login.html: guarantees a
+      // profile doc exists (no-op if one already does) rather than
+      // assuming it does.
+      const { profile } = await ensureUserProfile(user);
+      currentProfile = profile;
+      populateForm(profile);
+      renderHeader(profile);
+      renderAvatar();
+    } catch (err) {
+      console.error("Failed to load profile:", err);
+      showToast("Couldn't load your profile. Try again.", "error");
+    }
+
+    if (isCompleteMode) {
+      document.getElementById("completeBanner").hidden = false;
+      document.getElementById("profileSaveBtn").textContent = "Continue";
+    }
+  }
+
+  init();
+  renderBottomNav("profile");
+</script>
+
+</body>
+</html>
