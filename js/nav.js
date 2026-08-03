@@ -22,8 +22,7 @@ function renderBottomNav(activePage) {
   nav.setAttribute("aria-label", "Main navigation");
 
   nav.innerHTML = items.map((item) => `
-    
-      href="${item.href}"
+    <a href="${item.href}"
       class="bottom-nav__item ${item.isSell ? "is-sell" : ""} ${activePage === item.key ? "is-active" : ""}"
       aria-current="${activePage === item.key ? "page" : "false"}"
     >
