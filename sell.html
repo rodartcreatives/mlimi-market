@@ -1,0 +1,550 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
+<title>Sell Produce — Mlimi Market</title>
+<meta name="description" content="List your produce for sale on Mlimi Market.">
+<meta name="theme-color" content="#123329">
+
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Fraunces:wght@600;700&family=Inter:wght@400;500;600;700&family=JetBrains+Mono:wght@500;600&display=swap" rel="stylesheet">
+
+<link rel="stylesheet" href="css/shared.css">
+
+<style>
+  /* Page-specific styles for the sell flow only */
+  .page { padding-bottom: calc(var(--bottom-nav-height) + 96px); }
+
+  .sell-header {
+    display: flex;
+    align-items: center;
+    gap: var(--space-3);
+    padding: var(--space-4) 0 var(--space-2);
+  }
+  .sell-progress { flex: 1; min-width: 0; }
+  .sell-progress__label {
+    font-size: 13px;
+    font-weight: 600;
+    color: var(--color-ink-soft);
+    margin-bottom: var(--space-2);
+  }
+  .sell-progress__track {
+    height: 4px;
+    background: var(--color-line);
+    border-radius: 2px;
+    overflow: hidden;
+  }
+  .sell-progress__fill {
+    height: 100%;
+    background: var(--color-green-600);
+    border-radius: 2px;
+    transition: width var(--dur-slow) var(--ease-out);
+  }
+
+  .sell-step { animation: fade-in-up var(--dur-slow) var(--ease-out) both; }
+
+  .category-select-grid {
+    display: grid;
+    grid-template-columns: repeat(3, 1fr);
+    gap: var(--space-3);
+  }
+  .category-select {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 6px;
+    padding: var(--space-3) var(--space-2);
+    background: var(--color-white);
+    border: 1.5px solid var(--color-line);
+    border-radius: var(--radius-md);
+    color: var(--color-ink);
+    transition: border-color var(--dur-fast) var(--ease-out),
+      background var(--dur-fast) var(--ease-out),
+      transform var(--dur-fast) var(--ease-out);
+  }
+  .category-select:active { transform: scale(0.96); }
+  .category-select__icon { color: var(--color-green-700); }
+  .category-select__label { font-size: 12px; font-weight: 500; text-align: center; }
+  .category-select.is-selected { border-color: var(--color-green-600); background: #F1F7F3; }
+  .category-select.is-selected .category-select__label { color: var(--color-green-900); font-weight: 600; }
+
+  .photo-grid {
+    display: grid;
+    grid-template-columns: repeat(3, 1fr);
+    gap: var(--space-3);
+    margin-bottom: var(--space-3);
+  }
+  .photo-tile {
+    position: relative;
+    aspect-ratio: 1;
+    border-radius: var(--radius-sm);
+    overflow: hidden;
+    background: var(--color-parchment-dark);
+  }
+  .photo-tile img { width: 100%; height: 100%; object-fit: cover; }
+  .photo-tile__remove {
+    position: absolute;
+    top: 4px;
+    right: 4px;
+    width: 24px;
+    height: 24px;
+    border-radius: 50%;
+    background: rgba(18, 51, 41, 0.7);
+    color: var(--color-white);
+    border: none;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+  }
+  .photo-tile__uploading {
+    position: absolute;
+    inset: 0;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    background: rgba(255, 255, 255, 0.7);
+  }
+  .photo-add-tile {
+    aspect-ratio: 1;
+    border-radius: var(--radius-sm);
+    border: 1.5px dashed var(--color-line);
+    background: transparent;
+    color: var(--color-ink-soft);
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    gap: 4px;
+    font-size: 12px;
+  }
+
+  .review-card {
+    background: var(--color-white);
+    border: 1px solid var(--color-line);
+    border-radius: var(--radius-md);
+    padding: var(--space-4);
+  }
+  .review-row {
+    display: flex;
+    justify-content: space-between;
+    gap: var(--space-3);
+    padding: var(--space-2) 0;
+    border-bottom: 1px solid var(--color-line);
+    font-size: 14px;
+  }
+  .review-row:last-child { border-bottom: none; }
+  .review-row__label { color: var(--color-ink-soft); }
+  .review-row__value { font-weight: 600; color: var(--color-ink); text-align: right; }
+
+  .sell-action-bar {
+    position: fixed;
+    left: 0;
+    right: 0;
+    bottom: var(--bottom-nav-height);
+    background: var(--color-white);
+    border-top: 1px solid var(--color-line);
+    padding: var(--space-3) var(--space-4);
+    padding-bottom: calc(var(--space-3) + env(safe-area-inset-bottom, 0px));
+    z-index: 90;
+  }
+  .sell-action-bar-inner {
+    max-width: var(--content-max);
+    margin: 0 auto;
+    display: flex;
+    gap: var(--space-3);
+  }
+  @media (min-width: 768px) { .sell-action-bar-inner { max-width: 720px; } }
+</style>
+</head>
+<body>
+
+<div class="page">
+
+  <div class="sell-header">
+    <div class="sell-progress">
+      <div class="sell-progress__label" id="sellStepLabel">Step 1 of 4 — Produce</div>
+      <div class="sell-progress__track"><div class="sell-progress__fill" id="sellProgressFill" style="width:25%;"></div></div>
+    </div>
+    <button type="button" class="icon-btn" id="sellCloseBtn" aria-label="Close" style="box-shadow:none;border:1px solid var(--color-line);"></button>
+  </div>
+
+  <form id="sellForm" novalidate>
+
+    <!-- Step 1: Produce -->
+    <section class="sell-step" data-step="1">
+      <h2 class="mb-4">What are you selling?</h2>
+
+      <div class="field">
+        <label>Category</label>
+        <div class="category-select-grid" id="categorySelectGrid"></div>
+      </div>
+
+      <div class="field">
+        <label for="productNameInput">Product name</label>
+        <input type="text" id="productNameInput" placeholder="e.g. Fresh Maize">
+      </div>
+
+      <div class="field">
+        <label for="descriptionInput">Description (optional)</label>
+        <textarea id="descriptionInput" placeholder="Tell buyers more — quality, harvest date, etc."></textarea>
+      </div>
+    </section>
+
+    <!-- Step 2: Quantity & price -->
+    <section class="sell-step" data-step="2" hidden>
+      <h2 class="mb-4">Quantity &amp; price</h2>
+
+      <div class="field-row">
+        <div class="field">
+          <label for="quantityInput">Quantity</label>
+          <input type="number" inputmode="decimal" id="quantityInput" min="0" step="any" placeholder="e.g. 50">
+        </div>
+        <div class="field">
+          <label for="unitInput">Unit</label>
+          <input type="text" id="unitInput" list="unitOptions" placeholder="e.g. bags">
+          <datalist id="unitOptions">
+            <option value="kg"></option>
+            <option value="bags"></option>
+            <option value="tonnes"></option>
+            <option value="crates"></option>
+            <option value="boxes"></option>
+            <option value="litres"></option>
+            <option value="pieces"></option>
+          </datalist>
+        </div>
+      </div>
+
+      <div class="field">
+        <label for="priceInput">Price (MK)</label>
+        <input type="number" inputmode="decimal" id="priceInput" min="0" step="any" placeholder="e.g. 12000">
+      </div>
+
+      <div class="field">
+        <label>Price is...</label>
+        <div class="radio-pill-group" id="priceTypeOptions"></div>
+      </div>
+    </section>
+
+    <!-- Step 3: Location -->
+    <section class="sell-step" data-step="3" hidden>
+      <h2 class="mb-4">Where is it?</h2>
+
+      <div class="field">
+        <label for="sellDistrictSelect">District</label>
+        <select id="sellDistrictSelect">
+          <option value="" disabled selected>Choose your district</option>
+        </select>
+      </div>
+
+      <div class="field">
+        <label for="locationInput">Specific location (optional)</label>
+        <input type="text" id="locationInput" placeholder="e.g. Area 25, near the market">
+      </div>
+    </section>
+
+    <!-- Step 4: Photos & review -->
+    <section class="sell-step" data-step="4" hidden>
+      <h2 class="mb-4">Photos</h2>
+      <p class="field-hint mb-4">Listings with photos get more enquiries. Add up to 5.</p>
+
+      <div class="photo-grid" id="photoGrid"></div>
+      <input type="file" id="photoInput" accept="image/*" multiple hidden>
+
+      <h2 class="mt-6 mb-4">Review</h2>
+      <div class="review-card" id="reviewCard"></div>
+    </section>
+
+  </form>
+
+  <div class="sell-action-bar">
+    <div class="sell-action-bar-inner">
+      <button type="button" class="btn btn-outline" id="sellPrevBtn" hidden>Back</button>
+      <button type="button" class="btn btn-primary" id="sellNextBtn">Next</button>
+    </div>
+  </div>
+
+</div>
+
+<!-- Firebase (compat SDK — plain global objects, no bundler needed) -->
+<script src="https://www.gstatic.com/firebasejs/10.13.1/firebase-app-compat.js"></script>
+<script src="https://www.gstatic.com/firebasejs/10.13.1/firebase-firestore-compat.js"></script>
+<script src="https://www.gstatic.com/firebasejs/10.13.1/firebase-auth-compat.js"></script>
+
+<script src="js/firebase-config.js"></script>
+<script src="js/auth.js"></script>
+<script src="js/icons.js"></script>
+<script src="js/categories.js"></script>
+<script src="js/cloudinary-config.js"></script>
+<script src="js/firestore-helpers.js"></script>
+<script src="js/ui-helpers.js"></script>
+<script src="js/nav.js"></script>
+
+<script>
+  const TOTAL_STEPS = 4;
+  const STEP_LABELS = ["Produce", "Quantity & price", "Location", "Photos & review"];
+
+  const PRICE_TYPES = [
+    { value: "per_kg", label: "Per kg" },
+    { value: "per_bag", label: "Per bag" },
+    { value: "per_tonne", label: "Per tonne" },
+    { value: "total", label: "Total (fixed price)" },
+  ];
+
+  const state = {
+    step: 1,
+    categorySlug: "",
+    priceType: "per_bag",
+    imageUrls: [],
+    uploading: 0,
+  };
+
+  document.getElementById("sellCloseBtn").innerHTML = icon("x", 18);
+
+  /* ---------- Category grid (step 1) ---------- */
+  function renderCategoryGrid() {
+    document.getElementById("categorySelectGrid").innerHTML = CATEGORIES.map((cat) => `
+      <button type="button" class="category-select ${state.categorySlug === cat.slug ? "is-selected" : ""}" data-cat="${cat.slug}">
+        <span class="category-select__icon">${icon(cat.icon, 22)}</span>
+        <span class="category-select__label">${cat.name}</span>
+      </button>
+    `).join("");
+  }
+  document.getElementById("categorySelectGrid").addEventListener("click", (e) => {
+    const btn = e.target.closest(".category-select");
+    if (!btn) return;
+    state.categorySlug = btn.dataset.cat;
+    renderCategoryGrid();
+  });
+
+  /* ---------- Price type pills (step 2) ---------- */
+  function renderPriceTypeOptions() {
+    document.getElementById("priceTypeOptions").innerHTML = PRICE_TYPES.map((pt) => `
+      <label class="radio-pill">
+        <input type="radio" name="priceType" value="${pt.value}" ${state.priceType === pt.value ? "checked" : ""}>
+        <span>${pt.label}</span>
+      </label>
+    `).join("");
+  }
+  document.getElementById("priceTypeOptions").addEventListener("change", (e) => {
+    if (e.target.name === "priceType") state.priceType = e.target.value;
+  });
+
+  /* ---------- District select (step 3) ---------- */
+  const sellDistrictSelect = document.getElementById("sellDistrictSelect");
+  MALAWI_DISTRICTS.forEach((d) => {
+    const opt = document.createElement("option");
+    opt.value = d;
+    opt.textContent = d;
+    sellDistrictSelect.appendChild(opt);
+  });
+
+  /* ---------- Photo grid (step 4) ---------- */
+  function renderPhotoGrid() {
+    const grid = document.getElementById("photoGrid");
+
+    const photoTiles = state.imageUrls.map((url, i) => `
+      <div class="photo-tile">
+        <img src="${url}" alt="Listing photo ${i + 1}">
+        <button type="button" class="photo-tile__remove" data-remove-index="${i}" aria-label="Remove photo">${icon("x", 14)}</button>
+      </div>
+    `).join("");
+
+    const uploadingTiles = Array.from({ length: state.uploading }).map(() => `
+      <div class="photo-tile"><div class="photo-tile__uploading"><div class="spinner" style="width:20px;height:20px;"></div></div></div>
+    `).join("");
+
+    const canAddMore = (state.imageUrls.length + state.uploading) < MAX_IMAGES_PER_LISTING;
+    const addTile = canAddMore
+      ? `<button type="button" class="photo-add-tile" id="photoAddBtn">${icon("camera", 22)}<span>Add photo</span></button>`
+      : "";
+
+    grid.innerHTML = photoTiles + uploadingTiles + addTile;
+
+    const addBtn = document.getElementById("photoAddBtn");
+    if (addBtn) addBtn.addEventListener("click", () => document.getElementById("photoInput").click());
+
+    grid.querySelectorAll("[data-remove-index]").forEach((btn) => {
+      btn.addEventListener("click", () => {
+        state.imageUrls.splice(Number(btn.dataset.removeIndex), 1);
+        renderPhotoGrid();
+      });
+    });
+  }
+
+  document.getElementById("photoInput").addEventListener("change", async (e) => {
+    const files = Array.from(e.target.files || []);
+    e.target.value = ""; // allow re-selecting the same file later
+
+    const remainingSlots = MAX_IMAGES_PER_LISTING - state.imageUrls.length - state.uploading;
+    const toProcess = files.slice(0, Math.max(0, remainingSlots));
+    if (files.length > toProcess.length) {
+      showToast(`You can add up to ${MAX_IMAGES_PER_LISTING} photos.`, "error");
+    }
+
+    for (const file of toProcess) {
+      const validationError = validateImageFile(file);
+      if (validationError) {
+        showToast(validationError, "error");
+        continue;
+      }
+
+      state.uploading++;
+      renderPhotoGrid();
+      try {
+        const blob = await compressImage(file);
+        const url = await uploadListingImage(blob);
+        state.imageUrls.push(url);
+      } catch (err) {
+        console.error("Photo upload failed:", err);
+        showToast("Couldn't upload that photo. Try again.", "error");
+      } finally {
+        state.uploading--;
+        renderPhotoGrid();
+      }
+    }
+  });
+
+  /* ---------- Review (step 4) ---------- */
+  function renderReview() {
+    const category = getCategoryBySlug(state.categorySlug);
+    const quantity = document.getElementById("quantityInput").value;
+    const unit = document.getElementById("unitInput").value.trim();
+    const price = document.getElementById("priceInput").value;
+
+    const rows = [
+      ["Category", category ? category.name : "—"],
+      ["Product", document.getElementById("productNameInput").value.trim() || "—"],
+      ["Quantity", quantity ? `${quantity} ${unit}`.trim() : "—"],
+      ["Price", price ? `${formatMoney(price)} ${priceTypeLabel(state.priceType)}` : "—"],
+      ["District", sellDistrictSelect.value || "—"],
+      ["Photos", `${state.imageUrls.length} added`],
+    ];
+
+    document.getElementById("reviewCard").innerHTML = rows.map(([label, value]) => `
+      <div class="review-row"><span class="review-row__label">${label}</span><span class="review-row__value">${value}</span></div>
+    `).join("");
+  }
+
+  /* ---------- Step navigation ---------- */
+  function updateStepUI() {
+    document.querySelectorAll(".sell-step").forEach((section) => {
+      section.hidden = Number(section.dataset.step) !== state.step;
+    });
+
+    document.getElementById("sellStepLabel").textContent = `Step ${state.step} of ${TOTAL_STEPS} — ${STEP_LABELS[state.step - 1]}`;
+    document.getElementById("sellProgressFill").style.width = `${(state.step / TOTAL_STEPS) * 100}%`;
+
+    document.getElementById("sellPrevBtn").hidden = state.step === 1;
+    document.getElementById("sellNextBtn").textContent = state.step === TOTAL_STEPS ? "Publish listing" : "Next";
+
+    if (state.step === TOTAL_STEPS) renderReview();
+
+    window.scrollTo({ top: 0, behavior: "smooth" });
+  }
+
+  function validateStep(step) {
+    if (step === 1) {
+      if (!state.categorySlug) { showToast("Choose a category", "error"); return false; }
+      if (!document.getElementById("productNameInput").value.trim()) { showToast("Enter a product name", "error"); return false; }
+      return true;
+    }
+    if (step === 2) {
+      const quantity = Number(document.getElementById("quantityInput").value);
+      const price = Number(document.getElementById("priceInput").value);
+      if (!document.getElementById("quantityInput").value || quantity <= 0) { showToast("Enter a valid quantity", "error"); return false; }
+      if (!document.getElementById("unitInput").value.trim()) { showToast("Enter a unit, e.g. bags", "error"); return false; }
+      if (!document.getElementById("priceInput").value || price <= 0) { showToast("Enter a valid price", "error"); return false; }
+      return true;
+    }
+    if (step === 3) {
+      if (!sellDistrictSelect.value) { showToast("Choose your district", "error"); return false; }
+      return true;
+    }
+    if (step === 4) {
+      if (state.uploading > 0) { showToast("Please wait for photos to finish uploading", "error"); return false; }
+      return true;
+    }
+    return true;
+  }
+
+  document.getElementById("sellNextBtn").addEventListener("click", async () => {
+    if (!validateStep(state.step)) return;
+
+    if (state.step < TOTAL_STEPS) {
+      state.step++;
+      updateStepUI();
+      return;
+    }
+
+    await submitListing();
+  });
+
+  document.getElementById("sellPrevBtn").addEventListener("click", () => {
+    if (state.step > 1) {
+      state.step--;
+      updateStepUI();
+    }
+  });
+
+  document.getElementById("sellCloseBtn").addEventListener("click", () => {
+    const hasProgress = state.step > 1
+      || state.categorySlug
+      || document.getElementById("productNameInput").value.trim();
+    if (hasProgress && !confirm("Discard this listing?")) return;
+    window.location.href = "index.html";
+  });
+
+  /* ---------- Submit ---------- */
+  async function submitListing() {
+    const nextBtn = document.getElementById("sellNextBtn");
+    nextBtn.disabled = true;
+    nextBtn.textContent = "Publishing...";
+
+    try {
+      const category = getCategoryBySlug(state.categorySlug);
+      const profile = await getCurrentUserProfile();
+      if (!profile) throw new Error("No profile found for current user");
+
+      const listingId = await createListing({
+        productName: document.getElementById("productNameInput").value.trim(),
+        description: document.getElementById("descriptionInput").value.trim(),
+        categorySlug: state.categorySlug,
+        categoryName: category ? category.name : "",
+        quantity: Number(document.getElementById("quantityInput").value),
+        unit: document.getElementById("unitInput").value.trim(),
+        price: Number(document.getElementById("priceInput").value),
+        priceType: state.priceType,
+        district: sellDistrictSelect.value,
+        location: document.getElementById("locationInput").value.trim(),
+        imageUrls: state.imageUrls,
+      }, profile);
+
+      showToast("Listing published! It'll appear once approved.");
+      window.location.href = `listing.html?id=${listingId}`;
+    } catch (err) {
+      console.error("Failed to publish listing:", err);
+      showToast("Couldn't publish your listing. Try again.", "error");
+      nextBtn.disabled = false;
+      nextBtn.textContent = "Publish listing";
+    }
+  }
+
+  /* ---------- Init ---------- */
+  async function init() {
+    const user = await requireAuth(); // redirects to login.html?redirect=sell.html if signed out
+    if (!user) return;
+
+    renderCategoryGrid();
+    renderPriceTypeOptions();
+    renderPhotoGrid();
+    updateStepUI();
+  }
+
+  init();
+  renderBottomNav("sell");
+</script>
+
+</body>
+</html>
