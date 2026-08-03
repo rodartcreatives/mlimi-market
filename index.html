@@ -138,7 +138,7 @@
 
   async function loadFreshListings() {
     const container = document.getElementById("freshListings");
-    renderState(container, "loading");
+    renderSkeletonGrid(container);
     try {
       const items = await getListings({ sort: "newest" });
       const fresh = items.slice(0, 6);
@@ -151,7 +151,12 @@
         return;
       }
 
-      container.innerHTML = `<div class="listing-grid">${fresh.map(listingCardHTML).join("")}</div>`;
+      container.innerHTML = `<div class="listing-grid">${
+        fresh.map((l, i) => listingCardHTML(l, {
+          extraClass: "fade-in-up",
+          style: `animation-delay:${Math.min(i, 8) * 40}ms`,
+        })).join("")
+      }</div>`;
     } catch (err) {
       console.error("Failed to load fresh listings:", err);
       renderState(container, "error", {
