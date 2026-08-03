@@ -29,3 +29,14 @@ const CATEGORIES = [
 function getCategoryBySlug(slug) {
   return CATEGORIES.find((c) => c.slug === slug) || null;
 }
+
+/**
+ * Malawi's 28 districts, alphabetical. Used for the district
+ * filter on market.html and the location step on sell.html.
+ */
+const MALAWI_DISTRICTS = [
+  "Balaka", "Blantyre", "Chikwawa", "Chiradzulu", "Chitipa", "Dedza", "Dowa",
+  "Karonga", "Kasungu", "Likoma", "Lilongwe", "Machinga", "Mangochi", "Mchinji",
+  "Mulanje", "Mwanza", "Mzimba", "Neno", "Nkhata Bay", "Nkhotakota", "Nsanje",
+  "Ntcheu", "Ntchisi", "Phalombe", "Rumphi", "Salima", "Thyolo", "Zomba",
+];
