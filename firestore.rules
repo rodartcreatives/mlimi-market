@@ -39,12 +39,20 @@ service cloud.firestore {
       allow create: if isOwner(userId)
                     // a user cannot create their own profile already verified
                     && request.resource.data.isVerified == false;
-      allow update: if isOwner(userId)
-                    // isVerified can never be changed by the user themselves —
-                    // only admin, via the Firebase console or a trusted backend
-                    // process, can flip this. This is what makes "Verified
-                    // Seller" trustworthy instead of a self-claimed label.
-                    && request.resource.data.isVerified == resource.data.isVerified
+      allow update: if (
+                      isOwner(userId)
+                      // isVerified can never be changed by the user themselves —
+                      // only admin, via the Firebase console or a trusted backend
+                      // process, can flip this. This is what makes "Verified
+                      // Seller" trustworthy instead of a self-claimed label.
+                      && request.resource.data.isVerified == resource.data.isVerified
+                    )
+                    // FIX: wrapped the owner branch in parens. && binds tighter
+                    // than || in these rules too, so this was already correct,
+                    // but leaving it unparenthesized made it read like admin
+                    // could bypass the isVerified check — parens make the
+                    // intended grouping explicit instead of relying on operator
+                    // precedence a reader has to double-check.
                     || isAdmin();
       allow delete: if isOwner(userId) || isAdmin();
     }
@@ -67,7 +75,16 @@ service cloud.firestore {
                     && request.resource.data.sellerId == request.auth.uid
                     // sellers cannot publish already-approved listings —
                     // moderation queue must approve them
-                    && request.resource.data.isApproved == false;
+                    && request.resource.data.isApproved == false
+                    // FIX: sellerVerified is denormalized onto the listing for
+                    // display, but nothing previously stopped a client from
+                    // writing sellerVerified: true directly, bypassing
+                    // createListing()'s honest copy of the real profile value.
+                    // This forces it to match the seller's actual users/{uid}
+                    // doc — the same source of truth isVerified is protected
+                    // from self-editing above.
+                    && request.resource.data.sellerVerified ==
+                       get(/databases/$(database)/documents/users/$(request.auth.uid)).data.isVerified;
 
       allow update: if isAdmin()
                     || (
@@ -76,6 +93,11 @@ service cloud.firestore {
                       // an owner can edit their own listing but cannot
                       // grant themselves approval
                       && request.resource.data.isApproved == resource.data.isApproved
+                      // FIX: same guard as create — an owner editing their
+                      // listing cannot claim a verified badge they don't
+                      // actually have on their profile.
+                      && request.resource.data.sellerVerified ==
+                         get(/databases/$(database)/documents/users/$(request.auth.uid)).data.isVerified
                     );
 
       allow delete: if isAdmin()
@@ -99,7 +121,18 @@ service cloud.firestore {
 
     /* ---------- enquiries ---------- */
     match /enquiries/{enquiryId} {
-      allow create: if isSignedIn() && request.resource.data.buyerId == request.auth.uid;
+      allow create: if isSignedIn()
+                    && request.resource.data.buyerId == request.auth.uid
+                    // FIX: previously sellerId was trusted as sent by the
+                    // client, with no check it belonged to the named
+                    // listing. Since users/{uid} is public-read, UIDs are
+                    // discoverable — without this, anyone signed in could
+                    // spoof an enquiry into a stranger's inbox by pairing
+                    // any sellerId with any listingId. This forces sellerId
+                    // to match the real owner of the listing being enquired
+                    // about.
+                    && request.resource.data.sellerId ==
+                       get(/databases/$(database)/documents/listings/$(request.resource.data.listingId)).data.sellerId;
       allow read: if isAdmin()
                   || (isSignedIn() && (
                        resource.data.buyerId == request.auth.uid
