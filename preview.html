@@ -1,0 +1,180 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
+<title>Preview — Mlimi Market</title>
+<meta name="theme-color" content="#123329">
+
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Fraunces:wght@600;700&family=Inter:wght@400;500;600;700&family=JetBrains+Mono:wght@500;600&display=swap" rel="stylesheet">
+
+<link rel="stylesheet" href="css/shared.css">
+
+<style>
+  .home-hero { padding: var(--space-6) 0 var(--space-4); }
+  .home-hero h1 { font-size: 32px; margin-bottom: var(--space-2); }
+  .home-hero p { color: var(--color-ink-soft); font-size: 15px; }
+  .search-bar {
+    display: flex; align-items: center; gap: var(--space-2);
+    background: var(--color-white); border: 1.5px solid var(--color-line);
+    border-radius: var(--radius-md); padding: 0 var(--space-3);
+    margin: var(--space-4) 0; min-height: var(--tap-min);
+  }
+  .search-bar input { border: none; flex: 1; min-height: var(--tap-min); padding: 0; }
+  .search-bar input:focus { outline: none; }
+  .search-bar .icon-wrap { color: var(--color-ink-soft); display: flex; }
+  .action-row { display: grid; grid-template-columns: 1fr 1fr; gap: var(--space-3); margin-bottom: var(--space-6); }
+  .section-heading { display: flex; align-items: baseline; justify-content: space-between; margin-bottom: var(--space-3); }
+  section + section { margin-top: var(--space-8); }
+  .demo-controls {
+    display: flex; flex-wrap: wrap; gap: var(--space-2);
+    padding: var(--space-3); background: var(--color-parchment-dark);
+    border-radius: var(--radius-md); margin-bottom: var(--space-4);
+  }
+  .demo-controls button { width: auto; padding: 0 var(--space-4); }
+  .demo-note { font-size: 12px; color: var(--color-ink-soft); margin-bottom: var(--space-2); }
+</style>
+</head>
+<body>
+
+<div class="page">
+
+  <header class="home-hero">
+    <h1 class="font-display">Mlimi Market</h1>
+    <p>Preview build — dummy data, no Firebase required.</p>
+  </header>
+
+  <div class="demo-controls">
+    <button type="button" class="btn btn-outline" id="reloadBtn">Replay card stagger</button>
+    <button type="button" class="btn btn-outline" id="toastBtn">Show toast</button>
+    <button type="button" class="btn btn-outline" id="errorToastBtn">Show error toast</button>
+    <button type="button" class="btn btn-outline" id="sheetBtn">Open filter sheet</button>
+  </div>
+
+  <form class="search-bar" role="search">
+    <span class="icon-wrap" id="searchIcon"></span>
+    <input type="search" placeholder="What are you looking for?" aria-label="Search produce">
+  </form>
+
+  <div class="action-row">
+    <span class="btn btn-primary">Sell Produce</span>
+    <span class="btn btn-secondary">Find Produce</span>
+  </div>
+
+  <section>
+    <h2 class="mb-4">Browse by category</h2>
+    <div class="category-strip" id="categoryStrip"></div>
+  </section>
+
+  <section>
+    <div class="section-heading">
+      <h2>Fresh Listings</h2>
+      <a href="#">See all<span id="seeAllIcon"></span></a>
+    </div>
+    <p class="demo-note">Try "Replay card stagger" above to see the load-in animation, and hover/tap a card.</p>
+    <div id="freshListings"></div>
+  </section>
+
+</div>
+
+<div class="sheet-backdrop" id="sheetBackdrop"></div>
+<div class="sheet" id="filterSheet" role="dialog" aria-modal="true" aria-label="Filter and sort produce">
+  <div class="sheet__handle"></div>
+  <div class="sheet__header">
+    <h2>Filters &amp; sort</h2>
+    <button type="button" class="btn-ghost" id="sheetCloseBtn" aria-label="Close" style="width:auto;min-height:auto;padding:8px;"></button>
+  </div>
+  <div class="sheet__body">
+    <div class="sheet__section">
+      <span class="sheet__section-label">Sort by</span>
+      <div class="radio-pill-group">
+        <label class="radio-pill"><input type="radio" name="sortDemo" checked><span>Newest</span></label>
+        <label class="radio-pill"><input type="radio" name="sortDemo"><span>Price: Low to High</span></label>
+      </div>
+    </div>
+    <div class="sheet__section toggle-row">
+      <span class="sheet__section-label" style="margin-bottom:0;">Verified sellers only</span>
+      <label class="toggle">
+        <input type="checkbox">
+        <span class="toggle__track"></span>
+      </label>
+    </div>
+  </div>
+  <div class="sheet__footer">
+    <button type="button" class="btn btn-outline">Reset</button>
+    <button type="button" class="btn btn-primary" id="sheetApplyBtn">Show results</button>
+  </div>
+</div>
+
+<script src="js/icons.js"></script>
+<script src="js/categories.js"></script>
+<script src="js/ui-helpers.js"></script>
+<script src="js/nav.js"></script>
+
+<script>
+  const DUMMY_LISTINGS = [
+    { id: "1", productName: "Fresh Maize", price: 12000, priceType: "per_bag", quantity: 50, unit: "bags", district: "Lilongwe", categorySlug: "maize", sellerVerified: true, imageUrls: [] },
+    { id: "2", productName: "Sugar Beans", price: 8500, priceType: "per_bag", quantity: 20, unit: "bags", district: "Mzuzu", categorySlug: "beans", sellerVerified: false, imageUrls: [] },
+    { id: "3", productName: "Groundnuts", price: 15000, priceType: "per_bag", quantity: 12, unit: "bags", district: "Kasungu", categorySlug: "groundnuts", sellerVerified: true, imageUrls: [] },
+    { id: "4", productName: "Rice, Kilombero", price: 22000, priceType: "per_bag", quantity: 8, unit: "bags", district: "Karonga", categorySlug: "rice", sellerVerified: false, imageUrls: [] },
+    { id: "5", productName: "Irish Potatoes", price: 9000, priceType: "per_bag", quantity: 30, unit: "bags", district: "Dedza", categorySlug: "potatoes", sellerVerified: true, imageUrls: [] },
+    { id: "6", productName: "Tomatoes", price: 4500, priceType: "per_bag", quantity: 15, unit: "boxes", district: "Blantyre", categorySlug: "tomatoes", sellerVerified: false, imageUrls: [] },
+  ];
+
+  document.getElementById("searchIcon").innerHTML = icon("search", 18);
+  document.getElementById("seeAllIcon").innerHTML = icon("chevronRight", 14);
+
+  function renderCategoryStrip() {
+    document.getElementById("categoryStrip").innerHTML = CATEGORIES.map((cat) => `
+      <a href="#" class="category-chip">
+        <span class="category-chip__icon">${icon(cat.icon, 24)}</span>
+        <span class="category-chip__label">${cat.name}</span>
+      </a>
+    `).join("");
+  }
+
+  function renderListings() {
+    const container = document.getElementById("freshListings");
+    container.innerHTML = `<div class="listing-grid">${
+      DUMMY_LISTINGS.map((l, i) => listingCardHTML(l, {
+        extraClass: "fade-in-up",
+        style: `animation-delay:${Math.min(i, 8) * 40}ms`,
+      })).join("")
+    }</div>`;
+  }
+
+  function loadWithSkeleton() {
+    const container = document.getElementById("freshListings");
+    renderSkeletonGrid(container);
+    setTimeout(renderListings, 500);
+  }
+
+  document.getElementById("reloadBtn").addEventListener("click", loadWithSkeleton);
+  document.getElementById("toastBtn").addEventListener("click", () => showToast("Listing saved to favourites"));
+  document.getElementById("errorToastBtn").addEventListener("click", () => showToast("Couldn't connect. Check your network.", "error"));
+
+  function openSheet() {
+    document.getElementById("sheetBackdrop").classList.add("is-open");
+    document.getElementById("filterSheet").classList.add("is-open");
+    document.body.style.overflow = "hidden";
+  }
+  function closeSheet() {
+    document.getElementById("sheetBackdrop").classList.remove("is-open");
+    document.getElementById("filterSheet").classList.remove("is-open");
+    document.body.style.overflow = "";
+  }
+  document.getElementById("sheetBtn").addEventListener("click", openSheet);
+  document.getElementById("sheetBackdrop").addEventListener("click", closeSheet);
+  document.getElementById("sheetCloseBtn").addEventListener("click", closeSheet);
+  document.getElementById("sheetApplyBtn").addEventListener("click", closeSheet);
+  document.getElementById("sheetCloseBtn").innerHTML = icon("x", 18);
+
+  renderCategoryStrip();
+  loadWithSkeleton();
+  renderBottomNav("home");
+</script>
+
+</body>
+</html>
