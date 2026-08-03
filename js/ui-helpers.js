@@ -19,7 +19,10 @@ function showToast(message, type = "info", duration = 3500) {
   toast.textContent = message;
   document.body.appendChild(toast);
 
-  setTimeout(() => toast.remove(), duration);
+  setTimeout(() => {
+    toast.classList.add("is-leaving");
+    toast.addEventListener("animationend", () => toast.remove(), { once: true });
+  }, duration);
 }
 
 /* ---------- State block renderer ---------- */
@@ -207,4 +210,67 @@ function priceTypeLabel(priceType) {
     total: "total",
   };
   return labels[priceType] || "";
+}
+
+/* ---------- Skeleton grid ---------- */
+/**
+ * Renders placeholder cards into a listing-grid while data loads.
+ * Used instead of the generic spinner for content grids specifically —
+ * it previews the shape of what's coming, which reads faster than a
+ * bare spinner on a slow connection.
+ */
+function renderSkeletonGrid(container, count = 6) {
+  const cards = Array.from({ length: count }).map(() => `
+    <div class="skeleton-card">
+      <div class="skeleton-card__image"></div>
+      <div class="skeleton-line" style="width:70%;"></div>
+      <div class="skeleton-line" style="width:40%;margin-top:8px;"></div>
+      <div class="skeleton-line" style="width:55%;margin-top:8px;"></div>
+    </div>
+  `).join("");
+  container.innerHTML = `<div class="listing-grid">${cards}</div>`;
+}
+
+/* ---------- Listing card ---------- */
+/**
+ * Renders a single listing as the shared "market tag" card.
+ * Depends on icon() (icons.js) and getCategoryBySlug() (categories.js)
+ * being loaded first.
+ *
+ * @param {object} listing - a listing document (with .id from Firestore)
+ * @param {object} [opts] - { extraClass, style } for optional stagger-in
+ *   animation classes/inline delays. Safe to call as a bare Array.map
+ *   callback too — a numeric index in this position is ignored.
+ */
+function listingCardHTML(listing, opts) {
+  const options = opts && typeof opts === "object" ? opts : {};
+  const category = getCategoryBySlug(listing.categorySlug);
+  const image = listing.imageUrls && listing.imageUrls[0];
+  const classAttr = `listing-card${options.extraClass ? ` ${options.extraClass}` : ""}`;
+  const styleAttr = options.style ? ` style="${options.style}"` : "";
+
+  const imageHTML = image
+    ? `<img class="listing-card__image" src="${image}" alt="${listing.productName || "Produce"}" loading="lazy">`
+    : `<div class="listing-card__image" style="display:flex;align-items:center;justify-content:center;color:var(--color-line);">${icon(category ? category.icon : "sprout", 32)}</div>`;
+
+  const verifiedBadge = listing.sellerVerified
+    ? `<span class="badge badge-verified" style="position:absolute;top:8px;right:8px;">${icon("badgeCheck", 12)}Verified</span>`
+    : "";
+
+  return `
+    <a href="listing.html?id=${listing.id}" class="${classAttr}"${styleAttr}>
+      <div style="position:relative;">
+        ${imageHTML}
+        ${verifiedBadge}
+      </div>
+      <div class="listing-card__body">
+        <div class="listing-card__title">${listing.productName || "Untitled listing"}</div>
+        <div class="price">${formatMoney(listing.price)} <span style="font-weight:500;color:var(--color-ink-soft);font-size:12px;">${priceTypeLabel(listing.priceType)}</span></div>
+        <div class="listing-card__meta">
+          <span class="meta-item">${icon("mapPin", 13)}${listing.district || ""}</span>
+          <span class="meta-item">${listing.quantity != null ? listing.quantity : ""} ${listing.unit || ""}</span>
+        </div>
+      </div>
+    </a>
+  `;
 }
