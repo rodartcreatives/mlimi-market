@@ -1,0 +1,481 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
+<title>Listing — Mlimi Market</title>
+<meta name="theme-color" content="#123329">
+
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Fraunces:wght@600;700&family=Inter:wght@400;500;600;700&family=JetBrains+Mono:wght@500;600&display=swap" rel="stylesheet">
+
+<link rel="stylesheet" href="css/shared.css">
+
+<style>
+  /* Page-specific styles for the listing detail screen only */
+  .page { padding-bottom: calc(var(--bottom-nav-height) + 92px); }
+
+  .detail-gallery { position: relative; margin-bottom: var(--space-4); }
+  .detail-gallery-track {
+    display: flex;
+    overflow-x: auto;
+    scroll-snap-type: x mandatory;
+    border-radius: var(--radius-lg);
+    scrollbar-width: none;
+  }
+  .detail-gallery-track::-webkit-scrollbar { display: none; }
+  .detail-gallery-track img,
+  .detail-gallery-track .detail-gallery-placeholder {
+    flex: 0 0 100%;
+    scroll-snap-align: start;
+    aspect-ratio: 4 / 3;
+    object-fit: cover;
+    background: var(--color-parchment-dark);
+  }
+  .detail-gallery-placeholder {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    color: var(--color-line);
+  }
+  .detail-gallery-dots {
+    display: flex;
+    justify-content: center;
+    gap: 6px;
+    margin-top: var(--space-2);
+  }
+  .detail-gallery-dot {
+    width: 6px;
+    height: 6px;
+    border-radius: 50%;
+    background: var(--color-line);
+    transition: background var(--dur-fast) var(--ease-out), transform var(--dur-fast) var(--ease-out);
+  }
+  .detail-gallery-dot.is-active { background: var(--color-green-700); transform: scale(1.3); }
+
+  .detail-header-overlay {
+    position: absolute;
+    top: var(--space-3);
+    left: var(--space-3);
+    right: var(--space-3);
+    display: flex;
+    justify-content: space-between;
+    z-index: 5;
+  }
+  .icon-btn {
+    width: 40px;
+    height: 40px;
+    border-radius: 50%;
+    background: var(--color-white);
+    border: none;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    color: var(--color-green-900);
+    box-shadow: var(--shadow-sm);
+    transition: transform var(--dur-fast) var(--ease-out), color var(--dur-fast) var(--ease-out);
+  }
+  .icon-btn:active { transform: scale(0.88); }
+  .icon-btn.is-favourited { color: var(--color-gold-600); }
+  @keyframes heart-pulse { 0% { transform: scale(1); } 40% { transform: scale(1.25); } 100% { transform: scale(1); } }
+  .icon-btn.is-favourited .icon-btn__icon { animation: heart-pulse var(--dur-slow) var(--ease-out); }
+
+  .detail-eyebrow {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    font-size: 12px;
+    font-weight: 600;
+    letter-spacing: 0.04em;
+    text-transform: uppercase;
+    color: var(--color-green-700);
+    margin-bottom: var(--space-2);
+  }
+  .detail-title { font-size: 24px; margin-bottom: var(--space-1); }
+  .detail-price { font-family: var(--font-mono); font-size: 22px; font-weight: 600; color: var(--color-green-900); margin-bottom: var(--space-3); }
+  .detail-price span { font-family: var(--font-body); font-weight: 500; font-size: 13px; color: var(--color-ink-soft); }
+  .detail-meta-row { display: flex; flex-wrap: wrap; gap: var(--space-4); margin-bottom: var(--space-5); }
+
+  .seller-card {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: var(--space-3);
+    background: var(--color-white);
+    border: 1px solid var(--color-line);
+    border-radius: var(--radius-md);
+    padding: var(--space-4);
+    margin-bottom: var(--space-6);
+  }
+  .seller-card__info { display: flex; align-items: center; gap: var(--space-3); min-width: 0; }
+  .seller-avatar {
+    width: 44px;
+    height: 44px;
+    border-radius: 50%;
+    background: var(--color-parchment-dark);
+    color: var(--color-green-700);
+    font-family: var(--font-display);
+    font-weight: 600;
+    font-size: 16px;
+    flex-shrink: 0;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+  }
+  .seller-card__name { font-weight: 600; color: var(--color-green-900); display: flex; align-items: center; gap: 4px; }
+  .seller-card__sub { font-size: 12px; color: var(--color-ink-soft); }
+  .seller-card__actions { display: flex; gap: var(--space-2); flex-shrink: 0; }
+  .seller-card__actions .icon-btn { border: 1px solid var(--color-line); box-shadow: none; }
+
+  .detail-action-bar {
+    position: fixed;
+    left: 0;
+    right: 0;
+    bottom: var(--bottom-nav-height);
+    background: var(--color-white);
+    border-top: 1px solid var(--color-line);
+    padding: var(--space-3) var(--space-4);
+    padding-bottom: calc(var(--space-3) + env(safe-area-inset-bottom, 0px));
+    z-index: 90;
+  }
+  .detail-action-bar-inner { max-width: var(--content-max); margin: 0 auto; display: flex; gap: var(--space-3); }
+  @media (min-width: 768px) { .detail-action-bar-inner { max-width: 720px; } }
+
+  .report-link {
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+    font-size: 13px;
+    color: var(--color-ink-soft);
+    margin-top: var(--space-2);
+  }
+
+  .field textarea {
+    width: 100%;
+    min-height: 96px;
+    padding: var(--space-3);
+    border: 1.5px solid var(--color-line);
+    border-radius: var(--radius-md);
+    font-family: var(--font-body);
+    font-size: 15px;
+    resize: vertical;
+  }
+  .field textarea:focus { outline: none; border-color: var(--color-green-600); }
+</style>
+</head>
+<body>
+
+<div class="page">
+
+  <div id="listingContent">
+    <div class="state-block"><div class="spinner"></div></div>
+  </div>
+
+</div>
+
+<div class="sheet-backdrop" id="reportBackdrop"></div>
+<div class="sheet" id="reportSheet" role="dialog" aria-modal="true" aria-label="Report this listing">
+  <div class="sheet__handle"></div>
+  <div class="sheet__header">
+    <h2>Report listing</h2>
+    <button type="button" class="icon-btn" id="reportCloseBtn" aria-label="Close" style="box-shadow:none;border:1px solid var(--color-line);"></button>
+  </div>
+  <div class="sheet__body">
+    <div class="sheet__section">
+      <span class="sheet__section-label">What's wrong with this listing?</span>
+      <div class="radio-pill-group" id="reportReasons">
+        <label class="radio-pill"><input type="radio" name="reportReason" value="Misleading price or quantity"><span>Misleading price or quantity</span></label>
+        <label class="radio-pill"><input type="radio" name="reportReason" value="Item not available"><span>Item not available</span></label>
+        <label class="radio-pill"><input type="radio" name="reportReason" value="Suspicious or scam"><span>Suspicious or scam</span></label>
+        <label class="radio-pill"><input type="radio" name="reportReason" value="Inappropriate content"><span>Inappropriate content</span></label>
+        <label class="radio-pill"><input type="radio" name="reportReason" value="Other"><span>Other</span></label>
+      </div>
+    </div>
+    <div class="sheet__section field" style="margin-bottom:0;">
+      <span class="sheet__section-label">Anything else? (optional)</span>
+      <textarea id="reportDescription" placeholder="Add any details that would help us look into this"></textarea>
+    </div>
+  </div>
+  <div class="sheet__footer">
+    <button type="button" class="btn btn-primary" id="reportSubmitBtn">Submit report</button>
+  </div>
+</div>
+
+<div class="sheet-backdrop" id="enquiryBackdrop"></div>
+<div class="sheet" id="enquirySheet" role="dialog" aria-modal="true" aria-label="Message the seller">
+  <div class="sheet__handle"></div>
+  <div class="sheet__header">
+    <h2>Message seller</h2>
+    <button type="button" class="icon-btn" id="enquiryCloseBtn" aria-label="Close" style="box-shadow:none;border:1px solid var(--color-line);"></button>
+  </div>
+  <div class="sheet__body">
+    <div class="field" style="margin-bottom:0;">
+      <textarea id="enquiryMessage"></textarea>
+    </div>
+  </div>
+  <div class="sheet__footer">
+    <button type="button" class="btn btn-primary" id="enquirySendBtn">Send enquiry</button>
+  </div>
+</div>
+
+<!-- Firebase (compat SDK — plain global objects, no bundler needed) -->
+<script src="https://www.gstatic.com/firebasejs/10.13.1/firebase-app-compat.js"></script>
+<script src="https://www.gstatic.com/firebasejs/10.13.1/firebase-firestore-compat.js"></script>
+<script src="https://www.gstatic.com/firebasejs/10.13.1/firebase-auth-compat.js"></script>
+
+<script src="js/firebase-config.js"></script>
+<script src="js/auth.js"></script>
+<script src="js/icons.js"></script>
+<script src="js/categories.js"></script>
+<script src="js/firestore-helpers.js"></script>
+<script src="js/ui-helpers.js"></script>
+<script src="js/nav.js"></script>
+
+<script>
+  const listingId = new URLSearchParams(window.location.search).get("id");
+  let currentListing = null;
+  let currentUser = null;
+  let favourited = false;
+  let activeGalleryIndex = 0;
+
+  function initials(name) {
+    return (name || "?").trim().split(/\s+/).slice(0, 2).map((w) => w[0].toUpperCase()).join("");
+  }
+
+  function renderNotFound() {
+    const container = document.getElementById("listingContent");
+    renderState(container, "error", {
+      icon: icon("sprout", 40),
+      title: "Listing not found",
+      message: "This listing may have been removed or sold.",
+      retryLabel: "Back to Market",
+      onRetry: () => { window.location.href = "market.html"; },
+    });
+  }
+
+  function renderGallery(listing) {
+    const images = listing.imageUrls && listing.imageUrls.length ? listing.imageUrls : null;
+    const category = getCategoryBySlug(listing.categorySlug);
+
+    const slidesHTML = images
+      ? images.map((url) => `<img src="${url}" alt="${listing.productName || "Produce"}" loading="lazy">`).join("")
+      : `<div class="detail-gallery-placeholder">${icon(category ? category.icon : "sprout", 56)}</div>`;
+
+    const dotsHTML = images && images.length > 1
+      ? `<div class="detail-gallery-dots">${images.map((_, i) => `<span class="detail-gallery-dot ${i === 0 ? "is-active" : ""}"></span>`).join("")}</div>`
+      : "";
+
+    return `
+      <div class="detail-gallery">
+        <div class="detail-header-overlay">
+          <button type="button" class="icon-btn" id="backBtn" aria-label="Back"><span>${icon("chevronLeft", 20)}</span></button>
+          <button type="button" class="icon-btn" id="favBtn" aria-label="Save listing"><span class="icon-btn__icon">${icon("heart", 20)}</span></button>
+        </div>
+        <div class="detail-gallery-track" id="galleryTrack">${slidesHTML}</div>
+        ${dotsHTML}
+      </div>
+    `;
+  }
+
+  function renderListing(listing, sellerProfile) {
+    const category = getCategoryBySlug(listing.categorySlug);
+    const isSold = listing.status === "sold";
+    const canShowDirectContact = !!(sellerProfile && sellerProfile.whatsappPublic && sellerProfile.phone);
+
+    const container = document.getElementById("listingContent");
+    container.innerHTML = `
+      ${renderGallery(listing)}
+
+      <div class="detail-eyebrow">${icon(category ? category.icon : "sprout", 14)}${category ? category.name : "Produce"}</div>
+      <h1 class="detail-title">${listing.productName || "Untitled listing"}${isSold ? ` <span class="badge badge-status-sold">Sold</span>` : ""}</h1>
+      <div class="detail-price">${formatMoney(listing.price)} <span>${priceTypeLabel(listing.priceType)}</span></div>
+
+      <div class="detail-meta-row">
+        <span class="meta-item">${icon("mapPin", 15)}${[listing.district, listing.location].filter(Boolean).join(", ") || "District not set"}</span>
+        <span class="meta-item">${listing.quantity != null ? listing.quantity : ""} ${listing.unit || ""} available</span>
+        <span class="meta-item">${icon("clock", 15)}Posted ${formatRelativeTime(listing.createdAt)}</span>
+      </div>
+
+      <div class="seller-card">
+        <div class="seller-card__info">
+          <div class="seller-avatar">${initials(listing.sellerName)}</div>
+          <div style="min-width:0;">
+            <div class="seller-card__name">${listing.sellerName || "Farmer"}${listing.sellerVerified ? icon("badgeCheck", 15) : ""}</div>
+            <div class="seller-card__sub">${listing.sellerVerified ? "Verified seller" : "Seller"}</div>
+          </div>
+        </div>
+        ${canShowDirectContact ? `
+          <div class="seller-card__actions">
+            <a class="icon-btn" href="${buildCallLink(sellerProfile.phone)}" aria-label="Call seller">${icon("phone", 18)}</a>
+          </div>
+        ` : ""}
+      </div>
+
+      ${listing.description ? `
+        <section>
+          <h2 class="mb-4">Description</h2>
+          <p style="color:var(--color-ink-soft);white-space:pre-wrap;">${listing.description}</p>
+        </section>
+      ` : ""}
+
+      <button type="button" class="report-link" id="reportBtn">${icon("flag", 14)}Report this listing</button>
+
+      ${!isSold ? `
+        <div class="detail-action-bar">
+          <div class="detail-action-bar-inner">
+            ${canShowDirectContact
+              ? `<a class="btn btn-primary" id="whatsappBtn" href="${buildWhatsAppLink(sellerProfile.phone, listing.productName || "produce")}" target="_blank" rel="noopener">${icon("phone", 18)} WhatsApp Seller</a>`
+              : `<button type="button" class="btn btn-primary" id="enquiryBtn">Message Seller</button>`
+            }
+          </div>
+        </div>
+      ` : ""}
+    `;
+
+    document.getElementById("backBtn").addEventListener("click", () => {
+      if (document.referrer) window.history.back();
+      else window.location.href = "market.html";
+    });
+
+    const track = document.getElementById("galleryTrack");
+    if (track) {
+      track.addEventListener("scroll", () => {
+        const index = Math.round(track.scrollLeft / track.clientWidth);
+        if (index === activeGalleryIndex) return;
+        activeGalleryIndex = index;
+        document.querySelectorAll(".detail-gallery-dot").forEach((dot, i) => {
+          dot.classList.toggle("is-active", i === index);
+        });
+      });
+    }
+
+    document.getElementById("favBtn").addEventListener("click", handleToggleFavourite);
+    document.getElementById("reportBtn").addEventListener("click", openReportSheet);
+
+    const enquiryBtn = document.getElementById("enquiryBtn");
+    if (enquiryBtn) enquiryBtn.addEventListener("click", openEnquirySheet);
+  }
+
+  async function handleToggleFavourite() {
+    const btn = document.getElementById("favBtn");
+    const user = await requireAuth();
+    if (!user) return; // requireAuth already redirected to login.html
+
+    try {
+      favourited = await toggleFavourite(user.uid, listingId);
+      btn.classList.toggle("is-favourited", favourited);
+      showToast(favourited ? "Saved to favourites" : "Removed from favourites");
+    } catch (err) {
+      console.error("Failed to toggle favourite:", err);
+      showToast("Couldn't update favourites. Try again.", "error");
+    }
+  }
+
+  /* ---------- Report sheet ---------- */
+  function openReportSheet() {
+    document.getElementById("reportBackdrop").classList.add("is-open");
+    document.getElementById("reportSheet").classList.add("is-open");
+    document.body.style.overflow = "hidden";
+  }
+  function closeReportSheet() {
+    document.getElementById("reportBackdrop").classList.remove("is-open");
+    document.getElementById("reportSheet").classList.remove("is-open");
+    document.body.style.overflow = "";
+  }
+  document.getElementById("reportCloseBtn").addEventListener("click", closeReportSheet);
+  document.getElementById("reportBackdrop").addEventListener("click", closeReportSheet);
+  document.getElementById("reportCloseBtn").innerHTML = icon("x", 18);
+
+  document.getElementById("reportSubmitBtn").addEventListener("click", async () => {
+    const selected = document.querySelector('input[name="reportReason"]:checked');
+    if (!selected) {
+      showToast("Please choose a reason", "error");
+      return;
+    }
+    const user = await requireAuth();
+    if (!user) return;
+
+    try {
+      await createReport(user.uid, listingId, selected.value, document.getElementById("reportDescription").value.trim());
+      closeReportSheet();
+      showToast("Report submitted. Thank you.");
+    } catch (err) {
+      console.error("Failed to submit report:", err);
+      showToast("Couldn't submit report. Try again.", "error");
+    }
+  });
+
+  /* ---------- Enquiry sheet ---------- */
+  function openEnquirySheet() {
+    const msgBox = document.getElementById("enquiryMessage");
+    if (!msgBox.value) {
+      msgBox.value = `Hello, I found your ${currentListing.productName || "listing"} on Mlimi Market. Is it still available?`;
+    }
+    document.getElementById("enquiryBackdrop").classList.add("is-open");
+    document.getElementById("enquirySheet").classList.add("is-open");
+    document.body.style.overflow = "hidden";
+  }
+  function closeEnquirySheet() {
+    document.getElementById("enquiryBackdrop").classList.remove("is-open");
+    document.getElementById("enquirySheet").classList.remove("is-open");
+    document.body.style.overflow = "";
+  }
+  document.getElementById("enquiryCloseBtn").addEventListener("click", closeEnquirySheet);
+  document.getElementById("enquiryBackdrop").addEventListener("click", closeEnquirySheet);
+  document.getElementById("enquiryCloseBtn").innerHTML = icon("x", 18);
+
+  document.getElementById("enquirySendBtn").addEventListener("click", async () => {
+    const message = document.getElementById("enquiryMessage").value.trim();
+    if (!message) {
+      showToast("Write a short message first", "error");
+      return;
+    }
+    const user = await requireAuth();
+    if (!user) return;
+
+    try {
+      await createEnquiry(user.uid, currentListing.sellerId, listingId, message);
+      closeEnquirySheet();
+      showToast("Enquiry sent to the seller");
+    } catch (err) {
+      console.error("Failed to send enquiry:", err);
+      showToast("Couldn't send enquiry. Try again.", "error");
+    }
+  });
+
+  /* ---------- Init ---------- */
+  async function init() {
+    if (!listingId) { renderNotFound(); return; }
+
+    try {
+      currentListing = await getListingById(listingId);
+      if (!currentListing) { renderNotFound(); return; }
+
+      const [sellerProfile, user] = await Promise.all([
+        getUserProfileById(currentListing.sellerId).catch(() => null),
+        onAuthReady(),
+      ]);
+      currentUser = user;
+
+      renderListing(currentListing, sellerProfile);
+
+      if (currentUser) {
+        favourited = await isFavourited(currentUser.uid, listingId).catch(() => false);
+        document.getElementById("favBtn").classList.toggle("is-favourited", favourited);
+      }
+    } catch (err) {
+      console.error("Failed to load listing:", err);
+      renderState(document.getElementById("listingContent"), "error", {
+        retryLabel: "Retry",
+        onRetry: init,
+      });
+    }
+  }
+
+  init();
+  renderBottomNav("market");
+</script>
+
+</body>
+  </html>
