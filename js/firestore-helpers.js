@@ -242,6 +242,11 @@ async function getEnquiriesForSeller(sellerId) {
 
 /* ---------- Profiles ---------- */
 
+async function getUserProfileById(userId) {
+  const doc = await db.collection("users").doc(userId).get();
+  return doc.exists ? { id: doc.id, ...doc.data() } : null;
+}
+
 async function updateUserProfile(userId, updates) {
   await db.collection("users").doc(userId).set({
     ...updates,
