@@ -37,6 +37,47 @@ function isAdminUid(uid) {
 }
 
 /**
+ * Filenames this app will ever redirect back to after login or
+ * registration. Anything not on this list is rejected — see
+ * sanitizeRedirect() below.
+ */
+const ALLOWED_REDIRECT_PAGES = [
+  "index.html", "market.html", "listing.html", "sell.html",
+  "dashboard-farmer.html", "dashboard-buyer.html", "profile.html",
+  "admin.html",
+];
+
+/**
+ * Validates a "redirect" query param value before it's ever used
+ * in window.location.href. Without this, a link like
+ * login.html?redirect=https%3A%2F%2Fevil.example.com sends
+ * someone through a completely legitimate login on the real
+ * domain, then off to a phishing page right after — a classic
+ * open-redirect used for phishing.
+ *
+ * We allow-list known page filenames rather than trying to block
+ * every dangerous form (javascript:, //host, https://host, a
+ * backslash trick, etc.) — allow-listing is what actually closes
+ * this off completely, since a deny-list is always one encoding
+ * trick behind.
+ */
+function sanitizeRedirect(dest) {
+  if (!dest) return "index.html";
+
+  let decoded;
+  try {
+    decoded = decodeURIComponent(dest);
+  } catch (e) {
+    return "index.html";
+  }
+
+  const pathOnly = decoded.split(/[?#]/)[0];
+  const basename = pathOnly.split("/").pop();
+
+  return ALLOWED_REDIRECT_PAGES.includes(basename) ? decoded : "index.html";
+}
+
+/**
  * Waits for Firebase Auth to resolve the current user on page load.
  * Firebase's auth state is asynchronous — on a fresh page load it's
  * briefly unknown whether someone is logged in. Use this instead of
@@ -190,4 +231,4 @@ async function requireAdmin() {
 async function logout() {
   await auth.signOut();
   window.location.href = "index.html";
-                       }
+}
