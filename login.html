@@ -1,0 +1,237 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
+<title>Log in — Mlimi Market</title>
+<meta name="theme-color" content="#123329">
+
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Fraunces:wght@600;700&family=Inter:wght@400;500;600;700&family=JetBrains+Mono:wght@500;600&display=swap" rel="stylesheet">
+
+<link rel="stylesheet" href="css/shared.css">
+
+<style>
+  body { padding-bottom: var(--space-8); } /* no bottom nav on this page */
+  .auth-header { padding: var(--space-8) 0 var(--space-6); text-align: center; }
+  .auth-header h1 { margin-bottom: var(--space-2); }
+  .auth-header p { color: var(--color-ink-soft); font-size: 14px; }
+
+  .field-password { position: relative; }
+  .field-password input { padding-right: 44px; }
+  .field-password-toggle {
+    position: absolute;
+    right: 4px;
+    top: 4px;
+    width: 36px;
+    height: 36px;
+    background: transparent;
+    border: none;
+    color: var(--color-ink-soft);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    border-radius: var(--radius-sm);
+  }
+
+  .forgot-link {
+    display: block;
+    text-align: right;
+    font-size: 13px;
+    margin-top: -8px;
+    margin-bottom: var(--space-4);
+  }
+
+  .divider {
+    display: flex;
+    align-items: center;
+    gap: var(--space-3);
+    color: var(--color-ink-soft);
+    font-size: 13px;
+    margin: var(--space-5) 0;
+  }
+  .divider::before, .divider::after {
+    content: '';
+    flex: 1;
+    height: 1px;
+    background: var(--color-line);
+  }
+
+  .auth-footer { text-align: center; font-size: 14px; color: var(--color-ink-soft); margin-top: var(--space-6); }
+  .auth-footer a { font-weight: 600; }
+</style>
+</head>
+<body>
+
+<div class="page">
+
+  <header class="auth-header">
+    <h1 class="font-display">Welcome back</h1>
+    <p>Log in to buy, sell, and message on Mlimi Market.</p>
+  </header>
+
+  <form id="loginForm" novalidate>
+
+    <div class="field">
+      <label for="emailInput">Email</label>
+      <input type="email" id="emailInput" required autocomplete="email">
+    </div>
+
+    <div class="field field-password">
+      <label for="passwordInput">Password</label>
+      <input type="password" id="passwordInput" required autocomplete="current-password">
+      <button type="button" class="field-password-toggle" id="passwordToggle" aria-label="Show password"></button>
+    </div>
+
+    <button type="button" class="forgot-link" id="forgotPasswordBtn">Forgot password?</button>
+
+    <button type="submit" class="btn btn-primary" id="loginSubmitBtn">Log in</button>
+  </form>
+
+  <div class="divider">or</div>
+
+  <button type="button" class="btn btn-outline" id="googleBtn">Continue with Google</button>
+
+  <p class="auth-footer">Don't have an account? <a href="register.html" id="registerLink">Create one</a></p>
+
+</div>
+
+<!-- Firebase (compat SDK — plain global objects, no bundler needed) -->
+<script src="https://www.gstatic.com/firebasejs/10.13.1/firebase-app-compat.js"></script>
+<script src="https://www.gstatic.com/firebasejs/10.13.1/firebase-firestore-compat.js"></script>
+<script src="https://www.gstatic.com/firebasejs/10.13.1/firebase-auth-compat.js"></script>
+
+<script src="js/firebase-config.js"></script>
+<script src="js/auth.js"></script>
+<script src="js/icons.js"></script>
+<script src="js/ui-helpers.js"></script>
+
+<script>
+  /* ---------- Redirect destination handling ---------- */
+  function getRedirectDestination() {
+    const dest = new URLSearchParams(location.search).get("redirect");
+    return dest ? decodeURIComponent(dest) : "index.html";
+  }
+
+  // Carry the redirect param through to register.html.
+  (function preserveRedirectOnRegisterLink() {
+    const dest = new URLSearchParams(location.search).get("redirect");
+    if (dest) {
+      document.getElementById("registerLink").href = `register.html?redirect=${dest}`;
+    }
+  })();
+
+  /* ---------- Friendly error messages ---------- */
+  function friendlyAuthError(code) {
+    const messages = {
+      "auth/invalid-email": "That doesn't look like a valid email address.",
+      "auth/user-not-found": "No account found with that email.",
+      "auth/wrong-password": "Incorrect password. Try again or reset it.",
+      "auth/invalid-credential": "Incorrect email or password.",
+      "auth/network-request-failed": "Network error. Check your connection and try again.",
+      "auth/too-many-requests": "Too many attempts. Please wait a moment and try again.",
+    };
+    return messages[code] || "Something went wrong. Please try again.";
+  }
+
+  /* ---------- Password visibility toggle ---------- */
+  const passwordInput = document.getElementById("passwordInput");
+  const passwordToggle = document.getElementById("passwordToggle");
+  let passwordVisible = false;
+  passwordToggle.innerHTML = icon("eye", 18);
+  passwordToggle.addEventListener("click", () => {
+    passwordVisible = !passwordVisible;
+    passwordInput.type = passwordVisible ? "text" : "password";
+    passwordToggle.innerHTML = icon(passwordVisible ? "eyeOff" : "eye", 18);
+    passwordToggle.setAttribute("aria-label", passwordVisible ? "Hide password" : "Show password");
+  });
+
+  /* ---------- Forgot password ---------- */
+  document.getElementById("forgotPasswordBtn").addEventListener("click", async () => {
+    const email = document.getElementById("emailInput").value.trim();
+    if (!email) {
+      showToast("Enter your email above first", "error");
+      return;
+    }
+    try {
+      await sendPasswordReset(email);
+      showToast("Password reset email sent — check your inbox.");
+    } catch (err) {
+      console.error("Password reset failed:", err);
+      showToast(friendlyAuthError(err.code), "error");
+    }
+  });
+
+  /* ---------- Login submit ---------- */
+  document.getElementById("loginForm").addEventListener("submit", async (e) => {
+    e.preventDefault();
+    const form = e.target;
+    if (!form.checkValidity()) {
+      form.reportValidity();
+      return;
+    }
+
+    const email = document.getElementById("emailInput").value.trim();
+    const password = passwordInput.value;
+
+    const submitBtn = document.getElementById("loginSubmitBtn");
+    submitBtn.disabled = true;
+    submitBtn.textContent = "Logging in...";
+
+    try {
+      const user = await loginWithEmail(email, password);
+
+      // Safety net: recreates a minimal profile if one is somehow
+      // missing (e.g. a partial failure during a past registration).
+      // No-op if the profile already exists — see auth.js.
+      const { profile } = await ensureUserProfile(user);
+
+      if (profileNeedsCompletion(profile)) {
+        window.location.href = "profile.html?complete=1";
+      } else {
+        window.location.href = getRedirectDestination();
+      }
+    } catch (err) {
+      console.error("Login failed:", err);
+      showToast(friendlyAuthError(err.code), "error");
+      submitBtn.disabled = false;
+      submitBtn.textContent = "Log in";
+    }
+  });
+
+  /* ---------- Google sign-in ---------- */
+  document.getElementById("googleBtn").addEventListener("click", () => {
+    signInWithGoogle(); // navigates away — nothing to await here
+  });
+
+  /* ---------- Init: handle Google redirect return, or bounce
+     already-logged-in users straight to their destination ---------- */
+  async function init() {
+    try {
+      const googleUser = await handleGoogleRedirectResult();
+      if (googleUser) {
+        const { profile, isNew } = await ensureUserProfile(googleUser);
+        if (isNew || profileNeedsCompletion(profile)) {
+          window.location.href = "profile.html?complete=1";
+        } else {
+          window.location.href = getRedirectDestination();
+        }
+        return;
+      }
+    } catch (err) {
+      console.error("Google sign-in failed:", err);
+      showToast("Google sign-in failed. Please try again.", "error");
+    }
+
+    const existingUser = await onAuthReady();
+    if (existingUser) {
+      window.location.href = getRedirectDestination();
+    }
+  }
+
+  init();
+</script>
+
+</body>
+</html>
