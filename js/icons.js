@@ -30,6 +30,8 @@ const ICON_PATHS = {
   clock: `<circle cx="12" cy="12" r="8.5"/><path d="M12 7.5V12l3 2"/>`,
   badgeCheck: `<circle cx="12" cy="12" r="9"/><path d="M8.5 12.5l2.3 2.3 4.7-5.6"/>`,
   chevronRight: `<path d="M9 6l6 6-6 6"/>`,
+  chevronLeft: `<path d="M15 6l-6 6 6 6"/>`,
+  sliders: `<path d="M5 6h14"/><circle cx="9" cy="6" r="2"/><path d="M5 12h14"/><circle cx="15" cy="12" r="2"/><path d="M5 18h14"/><circle cx="9" cy="18" r="2"/>`,
   phone: `<path d="M6.5 4h3l1.5 4-2 1.5a11 11 0 0 0 5.5 5.5l1.5-2 4 1.5v3a1.5 1.5 0 0 1-1.6 1.5A16.5 16.5 0 0 1 5 5.6 1.5 1.5 0 0 1 6.5 4z"/>`,
   flag: `<path d="M6 21V4"/><path d="M6 4h11l-2.5 3.5L17 11H6"/>`,
   camera: `<path d="M4 8h3l1.5-2h7L17 8h3a1 1 0 0 1 1 1v9a1 1 0 0 1-1 1H4a1 1 0 0 1-1-1V9a1 1 0 0 1 1-1z"/><circle cx="12" cy="13" r="3.5"/>`,
