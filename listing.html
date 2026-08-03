@@ -239,8 +239,14 @@
   let favourited = false;
   let activeGalleryIndex = 0;
 
+  // NOTE: name is escaped AFTER slicing to initials, not before —
+  // escaping first (e.g. "<" -> "&lt;") would then have w[0] grab
+  // "&" instead of the actual first character. Slice first on the
+  // raw string, then escape the 1-2 char result before it goes
+  // into innerHTML.
   function initials(name) {
-    return (name || "?").trim().split(/\s+/).slice(0, 2).map((w) => w[0].toUpperCase()).join("");
+    const raw = (name || "?").trim().split(/\s+/).slice(0, 2).map((w) => w[0].toUpperCase()).join("");
+    return escapeHtml(raw);
   }
 
   function renderNotFound() {
@@ -257,9 +263,10 @@
   function renderGallery(listing) {
     const images = listing.imageUrls && listing.imageUrls.length ? listing.imageUrls : null;
     const category = getCategoryBySlug(listing.categorySlug);
+    const safeAlt = escapeHtml(listing.productName || "Produce");
 
     const slidesHTML = images
-      ? images.map((url) => `<img src="${url}" alt="${listing.productName || "Produce"}" loading="lazy">`).join("")
+      ? images.map((url) => `<img src="${escapeHtml(url)}" alt="${safeAlt}" loading="lazy">`).join("")
       : `<div class="detail-gallery-placeholder">${icon(category ? category.icon : "sprout", 56)}</div>`;
 
     const dotsHTML = images && images.length > 1
@@ -283,17 +290,27 @@
     const isSold = listing.status === "sold";
     const canShowDirectContact = !!(sellerProfile && sellerProfile.whatsappPublic && sellerProfile.phone);
 
+    // Every field below comes from a listing/user doc a signed-in
+    // user controls — escape before interpolating into innerHTML.
+    const safeProductName = escapeHtml(listing.productName || "Untitled listing");
+    const safeDistrict = escapeHtml(listing.district || "");
+    const safeLocation = escapeHtml(listing.location || "");
+    const safeUnit = escapeHtml(listing.unit || "");
+    const safeQuantity = listing.quantity != null ? escapeHtml(listing.quantity) : "";
+    const safeSellerName = escapeHtml(listing.sellerName || "Farmer");
+    const safeDescription = escapeHtml(listing.description || "");
+
     const container = document.getElementById("listingContent");
     container.innerHTML = `
       ${renderGallery(listing)}
 
       <div class="detail-eyebrow">${icon(category ? category.icon : "sprout", 14)}${category ? category.name : "Produce"}</div>
-      <h1 class="detail-title">${listing.productName || "Untitled listing"}${isSold ? ` <span class="badge badge-status-sold">Sold</span>` : ""}</h1>
+      <h1 class="detail-title">${safeProductName}${isSold ? ` <span class="badge badge-status-sold">Sold</span>` : ""}</h1>
       <div class="detail-price">${formatMoney(listing.price)} <span>${priceTypeLabel(listing.priceType)}</span></div>
 
       <div class="detail-meta-row">
-        <span class="meta-item">${icon("mapPin", 15)}${[listing.district, listing.location].filter(Boolean).join(", ") || "District not set"}</span>
-        <span class="meta-item">${listing.quantity != null ? listing.quantity : ""} ${listing.unit || ""} available</span>
+        <span class="meta-item">${icon("mapPin", 15)}${[safeDistrict, safeLocation].filter(Boolean).join(", ") || "District not set"}</span>
+        <span class="meta-item">${safeQuantity} ${safeUnit} available</span>
         <span class="meta-item">${icon("clock", 15)}Posted ${formatRelativeTime(listing.createdAt)}</span>
       </div>
 
@@ -301,13 +318,13 @@
         <div class="seller-card__info">
           <div class="seller-avatar">${initials(listing.sellerName)}</div>
           <div style="min-width:0;">
-            <div class="seller-card__name">${listing.sellerName || "Farmer"}${listing.sellerVerified ? icon("badgeCheck", 15) : ""}</div>
+            <div class="seller-card__name">${safeSellerName}${listing.sellerVerified ? icon("badgeCheck", 15) : ""}</div>
             <div class="seller-card__sub">${listing.sellerVerified ? "Verified seller" : "Seller"}</div>
           </div>
         </div>
         ${canShowDirectContact ? `
           <div class="seller-card__actions">
-            <a class="icon-btn" href="${buildCallLink(sellerProfile.phone)}" aria-label="Call seller">${icon("phone", 18)}</a>
+            <a class="icon-btn" href="${escapeHtml(buildCallLink(sellerProfile.phone))}" aria-label="Call seller">${icon("phone", 18)}</a>
           </div>
         ` : ""}
       </div>
@@ -315,7 +332,7 @@
       ${listing.description ? `
         <section>
           <h2 class="mb-4">Description</h2>
-          <p style="color:var(--color-ink-soft);white-space:pre-wrap;">${listing.description}</p>
+          <p style="color:var(--color-ink-soft);white-space:pre-wrap;">${safeDescription}</p>
         </section>
       ` : ""}
 
@@ -478,4 +495,4 @@
 </script>
 
 </body>
-  </html>
+</html>
