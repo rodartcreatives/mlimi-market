@@ -291,25 +291,12 @@
     loadResults();
   }
 
-  /* ---------- Skeleton loading state ---------- */
-  function renderSkeletons(container, count = 6) {
-    const cards = Array.from({ length: count }).map(() => `
-      <div class="skeleton-card">
-        <div class="skeleton-card__image"></div>
-        <div class="skeleton-line" style="width:70%;"></div>
-        <div class="skeleton-line" style="width:40%; margin-top:8px;"></div>
-        <div class="skeleton-line" style="width:55%; margin-top:8px;"></div>
-      </div>
-    `).join("");
-    container.innerHTML = `<div class="listing-grid">${cards}</div>`;
-  }
-
   /* ---------- Main load ---------- */
   async function loadResults() {
     const container = document.getElementById("marketResults");
     const summary = document.getElementById("resultsSummary");
     summary.textContent = "";
-    renderSkeletons(container);
+    renderSkeletonGrid(container);
 
     try {
       let items = state.q
