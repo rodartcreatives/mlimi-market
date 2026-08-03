@@ -1,0 +1,374 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
+<title>Market — Mlimi Market</title>
+<meta name="description" content="Browse produce for sale across Malawi's districts on Mlimi Market.">
+<meta name="theme-color" content="#123329">
+
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Fraunces:wght@600;700&family=Inter:wght@400;500;600;700&family=JetBrains+Mono:wght@500;600&display=swap" rel="stylesheet">
+
+<link rel="stylesheet" href="css/shared.css">
+
+<style>
+  /* Page-specific styles for the market screen only */
+  .search-bar {
+    display: flex;
+    align-items: center;
+    gap: var(--space-2);
+    background: var(--color-white);
+    border: 1.5px solid var(--color-line);
+    border-radius: var(--radius-md);
+    padding: 0 var(--space-3);
+    margin: var(--space-3) 0;
+    min-height: var(--tap-min);
+  }
+  .search-bar input {
+    border: none;
+    flex: 1;
+    min-height: var(--tap-min);
+    padding: 0;
+  }
+  .search-bar input:focus { outline: none; }
+  .search-bar .icon-wrap { color: var(--color-ink-soft); display: flex; }
+</style>
+</head>
+<body>
+
+<div class="page">
+
+  <div class="sticky-header" id="stickyHeader">
+    <h1 class="font-display">Market</h1>
+
+    <form class="search-bar" id="marketSearchForm" role="search">
+      <span class="icon-wrap" id="marketSearchIcon"></span>
+      <input
+        type="search"
+        id="marketSearchInput"
+        placeholder="Search produce..."
+        aria-label="Search produce"
+      >
+    </form>
+
+    <div class="chip-row" id="chipRow">
+      <button type="button" class="filter-chip" id="filtersChipBtn">
+        <span id="filtersChipIcon"></span>
+        <span>Filters</span>
+        <span class="filter-chip__badge" id="filtersBadge" hidden>0</span>
+      </button>
+      <span id="categoryChipsContainer" style="display:contents;"></span>
+    </div>
+  </div>
+
+  <div class="results-summary" id="resultsSummary"></div>
+
+  <div id="marketResults"></div>
+
+</div>
+
+<!-- Filter / sort bottom sheet -->
+<div class="sheet-backdrop" id="sheetBackdrop"></div>
+<div class="sheet" id="filterSheet" role="dialog" aria-modal="true" aria-label="Filter and sort produce">
+  <div class="sheet__handle"></div>
+  <div class="sheet__header">
+    <h2>Filters &amp; sort</h2>
+    <button type="button" class="btn-ghost" id="sheetCloseBtn" aria-label="Close" style="width:auto;min-height:auto;padding:8px;"></button>
+  </div>
+  <div class="sheet__body">
+
+    <div class="sheet__section">
+      <span class="sheet__section-label">Sort by</span>
+      <div class="radio-pill-group" id="sortOptions"></div>
+    </div>
+
+    <div class="sheet__section field" style="margin-bottom: var(--space-5);">
+      <label for="districtSelect">District</label>
+      <select id="districtSelect"></select>
+    </div>
+
+    <div class="sheet__section field-row">
+      <div class="field">
+        <label for="minPriceInput">Min price (MK)</label>
+        <input type="number" inputmode="numeric" id="minPriceInput" placeholder="0">
+      </div>
+      <div class="field">
+        <label for="maxPriceInput">Max price (MK)</label>
+        <input type="number" inputmode="numeric" id="maxPriceInput" placeholder="Any">
+      </div>
+    </div>
+
+    <div class="sheet__section toggle-row">
+      <label for="verifiedOnlyToggle" class="sheet__section-label" style="margin-bottom:0;">Verified sellers only</label>
+      <label class="toggle">
+        <input type="checkbox" id="verifiedOnlyToggle">
+        <span class="toggle__track"></span>
+      </label>
+    </div>
+
+  </div>
+  <div class="sheet__footer">
+    <button type="button" class="btn btn-outline" id="resetFiltersBtn">Reset</button>
+    <button type="button" class="btn btn-primary" id="applyFiltersBtn">Show results</button>
+  </div>
+</div>
+
+<!-- Firebase (compat SDK — plain global objects, no bundler needed) -->
+<script src="https://www.gstatic.com/firebasejs/10.13.1/firebase-app-compat.js"></script>
+<script src="https://www.gstatic.com/firebasejs/10.13.1/firebase-firestore-compat.js"></script>
+
+<script src="js/firebase-config.js"></script>
+<script src="js/icons.js"></script>
+<script src="js/categories.js"></script>
+<script src="js/firestore-helpers.js"></script>
+<script src="js/ui-helpers.js"></script>
+<script src="js/nav.js"></script>
+
+<script>
+  const SORT_OPTIONS = [
+    { value: "newest", label: "Newest" },
+    { value: "price_asc", label: "Price: Low to High" },
+    { value: "price_desc", label: "Price: High to Low" },
+    { value: "quantity_desc", label: "Largest quantity" },
+  ];
+
+  const params = new URLSearchParams(location.search);
+  const state = {
+    q: params.get("q") || "",
+    categorySlug: params.get("category") || "",
+    district: "",
+    sort: "newest",
+    verifiedOnly: false,
+    minPrice: null,
+    maxPrice: null,
+  };
+
+  /* ---------- Icons that live in static markup ---------- */
+  document.getElementById("marketSearchIcon").innerHTML = icon("search", 18);
+  document.getElementById("filtersChipIcon").innerHTML = icon("sliders", 15);
+  document.getElementById("sheetCloseBtn").innerHTML = icon("x", 18);
+  document.getElementById("marketSearchInput").value = state.q;
+
+  /* ---------- Sticky header shadow on scroll ---------- */
+  window.addEventListener("scroll", () => {
+    document.getElementById("stickyHeader").classList.toggle("is-scrolled", window.scrollY > 4);
+  }, { passive: true });
+
+  /* ---------- Chip row (category filters) ---------- */
+  function renderChipRow() {
+    const container = document.getElementById("categoryChipsContainer");
+    const allChip = `
+      <button type="button" class="filter-chip ${!state.categorySlug ? "is-active" : ""}" data-cat="">
+        All
+      </button>`;
+    const catChips = CATEGORIES.map((cat) => `
+      <button type="button" class="filter-chip ${state.categorySlug === cat.slug ? "is-active" : ""}" data-cat="${cat.slug}">
+        ${icon(cat.icon, 15)}<span>${cat.name}</span>
+      </button>
+    `).join("");
+    container.innerHTML = allChip + catChips;
+  }
+
+  document.getElementById("chipRow").addEventListener("click", (e) => {
+    const btn = e.target.closest(".filter-chip[data-cat]");
+    if (!btn) return;
+    state.categorySlug = btn.dataset.cat;
+    renderChipRow();
+    loadResults();
+  });
+
+  /* ---------- Sheet open/close ---------- */
+  function openSheet() {
+    document.getElementById("sheetBackdrop").classList.add("is-open");
+    document.getElementById("filterSheet").classList.add("is-open");
+    document.body.style.overflow = "hidden";
+  }
+  function closeSheet() {
+    document.getElementById("sheetBackdrop").classList.remove("is-open");
+    document.getElementById("filterSheet").classList.remove("is-open");
+    document.body.style.overflow = "";
+  }
+  document.getElementById("filtersChipBtn").addEventListener("click", openSheet);
+  document.getElementById("sheetBackdrop").addEventListener("click", closeSheet);
+  document.getElementById("sheetCloseBtn").addEventListener("click", closeSheet);
+
+  /* ---------- Sheet contents ---------- */
+  function renderSortOptions() {
+    document.getElementById("sortOptions").innerHTML = SORT_OPTIONS.map((opt) => `
+      <label class="radio-pill">
+        <input type="radio" name="sortOption" value="${opt.value}" ${state.sort === opt.value ? "checked" : ""}>
+        <span>${opt.label}</span>
+      </label>
+    `).join("");
+  }
+
+  function renderDistrictSelect() {
+    const el = document.getElementById("districtSelect");
+    el.innerHTML = `<option value="">All districts</option>` +
+      MALAWI_DISTRICTS.map((d) => `<option value="${d}" ${state.district === d ? "selected" : ""}>${d}</option>`).join("");
+  }
+
+  function updateFiltersBadge() {
+    let count = 0;
+    if (state.district) count++;
+    if (state.minPrice !== null) count++;
+    if (state.maxPrice !== null) count++;
+    if (state.verifiedOnly) count++;
+    if (state.sort !== "newest") count++;
+    const badge = document.getElementById("filtersBadge");
+    badge.hidden = count === 0;
+    badge.textContent = count;
+  }
+
+  document.getElementById("applyFiltersBtn").addEventListener("click", () => {
+    state.sort = document.querySelector('input[name="sortOption"]:checked')?.value || "newest";
+    state.district = document.getElementById("districtSelect").value;
+
+    const minV = document.getElementById("minPriceInput").value;
+    const maxV = document.getElementById("maxPriceInput").value;
+    state.minPrice = minV !== "" && !isNaN(Number(minV)) ? Number(minV) : null;
+    state.maxPrice = maxV !== "" && !isNaN(Number(maxV)) ? Number(maxV) : null;
+
+    state.verifiedOnly = document.getElementById("verifiedOnlyToggle").checked;
+
+    closeSheet();
+    updateFiltersBadge();
+    loadResults();
+  });
+
+  document.getElementById("resetFiltersBtn").addEventListener("click", () => {
+    state.sort = "newest";
+    state.district = "";
+    state.minPrice = null;
+    state.maxPrice = null;
+    state.verifiedOnly = false;
+
+    renderSortOptions();
+    renderDistrictSelect();
+    document.getElementById("minPriceInput").value = "";
+    document.getElementById("maxPriceInput").value = "";
+    document.getElementById("verifiedOnlyToggle").checked = false;
+
+    closeSheet();
+    updateFiltersBadge();
+    loadResults();
+  });
+
+  /* ---------- Search ---------- */
+  document.getElementById("marketSearchForm").addEventListener("submit", (e) => {
+    e.preventDefault();
+    state.q = document.getElementById("marketSearchInput").value.trim();
+    const url = new URL(location.href);
+    if (state.q) url.searchParams.set("q", state.q); else url.searchParams.delete("q");
+    history.replaceState(null, "", url);
+    loadResults();
+  });
+
+  /* ---------- Clear everything (used by empty state) ---------- */
+  function clearAllFilters() {
+    state.categorySlug = "";
+    state.district = "";
+    state.verifiedOnly = false;
+    state.minPrice = null;
+    state.maxPrice = null;
+    state.sort = "newest";
+    state.q = "";
+
+    document.getElementById("marketSearchInput").value = "";
+    const url = new URL(location.href);
+    url.search = "";
+    history.replaceState(null, "", url);
+
+    renderChipRow();
+    renderSortOptions();
+    renderDistrictSelect();
+    document.getElementById("minPriceInput").value = "";
+    document.getElementById("maxPriceInput").value = "";
+    document.getElementById("verifiedOnlyToggle").checked = false;
+    updateFiltersBadge();
+    loadResults();
+  }
+
+  /* ---------- Skeleton loading state ---------- */
+  function renderSkeletons(container, count = 6) {
+    const cards = Array.from({ length: count }).map(() => `
+      <div class="skeleton-card">
+        <div class="skeleton-card__image"></div>
+        <div class="skeleton-line" style="width:70%;"></div>
+        <div class="skeleton-line" style="width:40%; margin-top:8px;"></div>
+        <div class="skeleton-line" style="width:55%; margin-top:8px;"></div>
+      </div>
+    `).join("");
+    container.innerHTML = `<div class="listing-grid">${cards}</div>`;
+  }
+
+  /* ---------- Main load ---------- */
+  async function loadResults() {
+    const container = document.getElementById("marketResults");
+    const summary = document.getElementById("resultsSummary");
+    summary.textContent = "";
+    renderSkeletons(container);
+
+    try {
+      let items = state.q
+        ? await searchListings(state.q)
+        : await getAllActiveListings();
+
+      if (state.categorySlug) items = items.filter((l) => l.categorySlug === state.categorySlug);
+      if (state.district) items = items.filter((l) => l.district === state.district);
+      if (state.verifiedOnly) items = items.filter((l) => l.sellerVerified);
+      if (state.minPrice !== null) items = items.filter((l) => l.price >= state.minPrice);
+      if (state.maxPrice !== null) items = items.filter((l) => l.price <= state.maxPrice);
+
+      switch (state.sort) {
+        case "price_asc": items.sort((a, b) => a.price - b.price); break;
+        case "price_desc": items.sort((a, b) => b.price - a.price); break;
+        case "quantity_desc": items.sort((a, b) => b.quantity - a.quantity); break;
+        // newest: already newest-first from the source fetch
+      }
+
+      if (!items.length) {
+        const hasFilters = !!(state.categorySlug || state.district || state.verifiedOnly ||
+          state.minPrice !== null || state.maxPrice !== null || state.q);
+        renderState(container, "empty", {
+          title: "No produce found",
+          message: hasFilters
+            ? "Try adjusting your filters or search."
+            : "Check back soon — new listings are added often.",
+          retryLabel: hasFilters ? "Clear filters" : null,
+          onRetry: hasFilters ? clearAllFilters : null,
+        });
+        return;
+      }
+
+      summary.textContent = `${items.length} listing${items.length === 1 ? "" : "s"}`;
+      container.innerHTML = `<div class="listing-grid">${
+        items.map((l, i) => listingCardHTML(l, {
+          extraClass: "fade-in-up",
+          style: `animation-delay:${Math.min(i, 8) * 40}ms`,
+        })).join("")
+      }</div>`;
+    } catch (err) {
+      console.error("Failed to load market listings:", err);
+      renderState(container, "error", {
+        title: "We couldn't load the market",
+        message: "Check your connection and try again.",
+        retryLabel: "Retry",
+        onRetry: loadResults,
+      });
+    }
+  }
+
+  /* ---------- Init ---------- */
+  renderChipRow();
+  renderSortOptions();
+  renderDistrictSelect();
+  updateFiltersBadge();
+  loadResults();
+  renderBottomNav("market");
+</script>
+
+</body>
+  </html>
