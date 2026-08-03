@@ -34,33 +34,34 @@ async function getActiveCategories() {
 /* ---------- Listings ---------- */
 
 /**
- * Fetches approved, available listings for public browsing.
- *
- * DESIGN NOTE: Firestore requires a composite index for any query
- * that combines multiple `where` filters with an `orderBy`. If
- * category, district, and each sort option were all applied at
- * the query level, nearly every filter combination would need its
- * own manually-created index in the Firebase Console — impractical
- * for a one-person, phone-only setup. Instead, Firestore always
- * runs the exact same query (approved + available, newest first),
- * which needs exactly one composite index, ever. Category/district
- * filtering and alternate sorting happen here in JavaScript
- * afterward. At MVP scale (dozens to low hundreds of listings)
- * this costs nothing noticeable; if the marketplace grows into the
- * thousands, this is the first place to revisit.
- *
- * filters: { categorySlug, district, sort }
- * sort: "newest" (default) | "price_asc" | "price_desc" | "quantity_desc"
+ * The one query every listing-browsing page is built on. See the
+ * design note above: always the same shape (approved + available,
+ * newest first), so it needs exactly one composite index, ever.
+ * getListings(), searchListings(), and market.html's richer
+ * filtering (district, price range, verified-only) all start from
+ * this same fetch rather than querying Firestore separately.
  */
-async function getListings(filters = {}) {
+async function getAllActiveListings() {
   const snap = await db.collection("listings")
     .where("isApproved", "==", true)
     .where("status", "==", "available")
     .orderBy("createdAt", "desc")
     .limit(LISTINGS_FETCH_CAP)
     .get();
+  return snap.docs.map((d) => ({ id: d.id, ...d.data() }));
+}
 
-  let items = snap.docs.map((d) => ({ id: d.id, ...d.data() }));
+/**
+ * Fetches approved, available listings for public browsing, with
+ * basic category/district filtering and sorting applied in JS.
+ * See getAllActiveListings() above for why this isn't a Firestore
+ * query with these filters built in.
+ *
+ * filters: { categorySlug, district, sort }
+ * sort: "newest" (default) | "price_asc" | "price_desc" | "quantity_desc"
+ */
+async function getListings(filters = {}) {
+  let items = await getAllActiveListings();
 
   if (filters.categorySlug) {
     items = items.filter((l) => l.categorySlug === filters.categorySlug);
@@ -79,35 +80,28 @@ async function getListings(filters = {}) {
     case "quantity_desc":
       items.sort((a, b) => b.quantity - a.quantity);
       break;
-    // default: already newest-first from the query above
+    // default: already newest-first from getAllActiveListings()
   }
 
   return items;
 }
 
 /**
- * Simple client-side text search across product name.
- * Firestore doesn't support full-text search natively; for MVP
- * scale this is fine. If the catalog grows large, revisit with
- * Algolia/Typesense or a `searchTerms` array field.
+ * Simple client-side text search across product name, category,
+ * district, and location. Firestore doesn't support full-text
+ * search natively; for MVP scale this is fine. If the catalog
+ * grows large, revisit with Algolia/Typesense or a `searchTerms`
+ * array field.
  */
 async function searchListings(queryText) {
-  const snap = await db.collection("listings")
-    .where("isApproved", "==", true)
-    .where("status", "==", "available")
-    .orderBy("createdAt", "desc")
-    .limit(100)
-    .get();
-
+  const items = await getAllActiveListings();
   const needle = queryText.trim().toLowerCase();
-  return snap.docs
-    .map((d) => ({ id: d.id, ...d.data() }))
-    .filter((listing) =>
-      listing.productName?.toLowerCase().includes(needle) ||
-      listing.categoryName?.toLowerCase().includes(needle) ||
-      listing.district?.toLowerCase().includes(needle) ||
-      listing.location?.toLowerCase().includes(needle)
-    );
+  return items.filter((listing) =>
+    listing.productName?.toLowerCase().includes(needle) ||
+    listing.categoryName?.toLowerCase().includes(needle) ||
+    listing.district?.toLowerCase().includes(needle) ||
+    listing.location?.toLowerCase().includes(needle)
+  );
 }
 
 async function getListingById(id) {
