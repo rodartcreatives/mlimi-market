@@ -76,7 +76,7 @@ service cloud.firestore {
                     // sellers cannot publish already-approved listings —
                     // moderation queue must approve them
                     && request.resource.data.isApproved == false
-                    // FIX: sellerVerified is denormalized onto the listing for
+                    // sellerVerified is denormalized onto the listing for
                     // display, but nothing previously stopped a client from
                     // writing sellerVerified: true directly, bypassing
                     // createListing()'s honest copy of the real profile value.
@@ -84,20 +84,37 @@ service cloud.firestore {
                     // doc — the same source of truth isVerified is protected
                     // from self-editing above.
                     && request.resource.data.sellerVerified ==
-                       get(/databases/$(database)/documents/users/$(request.auth.uid)).data.isVerified;
+                       get(/databases/$(database)/documents/users/$(request.auth.uid)).data.isVerified
+                    // FIX: sellerName is denormalized the same way and had
+                    // the same gap sellerVerified used to have — nothing
+                    // stopped a client from writing an arbitrary sellerName
+                    // (e.g. someone else's real name) instead of their own.
+                    // Pin it to the profile doc the same way.
+                    && request.resource.data.sellerName ==
+                       get(/databases/$(database)/documents/users/$(request.auth.uid)).data.fullName;
 
       allow update: if isAdmin()
                     || (
                       isSignedIn()
                       && resource.data.sellerId == request.auth.uid
+                      // FIX: the line above only checks who owns the
+                      // *existing* doc — nothing previously stopped that
+                      // same owner from changing sellerId to something else
+                      // as part of the update. Pin it so sellerId can't be
+                      // reassigned.
+                      && request.resource.data.sellerId == resource.data.sellerId
                       // an owner can edit their own listing but cannot
                       // grant themselves approval
                       && request.resource.data.isApproved == resource.data.isApproved
-                      // FIX: same guard as create — an owner editing their
+                      // same guard as create — an owner editing their
                       // listing cannot claim a verified badge they don't
                       // actually have on their profile.
                       && request.resource.data.sellerVerified ==
                          get(/databases/$(database)/documents/users/$(request.auth.uid)).data.isVerified
+                      // FIX: same reasoning as create — pin sellerName so
+                      // an edit can't rewrite it to impersonate someone else.
+                      && request.resource.data.sellerName ==
+                         get(/databases/$(database)/documents/users/$(request.auth.uid)).data.fullName
                     );
 
       allow delete: if isAdmin()
