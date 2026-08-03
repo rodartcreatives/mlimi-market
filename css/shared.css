@@ -55,6 +55,13 @@
   /* Layout */
   --content-max: 480px; /* mobile-first single column ceiling on phones */
   --bottom-nav-height: 64px;
+
+  /* Motion — quick and grounded, never bouncy. Durations kept short
+     because most interactions here are one-handed, on-the-move taps. */
+  --dur-fast: 120ms;
+  --dur-base: 200ms;
+  --dur-slow: 300ms;
+  --ease-out: cubic-bezier(0.16, 1, 0.3, 1);
 }
 
 /* ---- Reset ---- */
@@ -83,11 +90,15 @@ input, select, textarea { font-family: inherit; font-size: 16px; } /* 16px preve
   outline-offset: 2px;
 }
 
-/* Respect reduced motion */
+/* Respect reduced motion. animation-iteration-count is capped at 1 so
+   looping animations (spinner, skeleton shimmer) settle at their end
+   frame instead of flickering rapidly forever. */
 @media (prefers-reduced-motion: reduce) {
   *, *::before, *::after {
     animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
     transition-duration: 0.01ms !important;
+    scroll-behavior: auto !important;
   }
 }
 
@@ -141,7 +152,10 @@ h3 { font-size: 18px; }
   font-size: 16px;
   font-weight: 600;
   width: 100%;
-  transition: transform 0.06s ease, opacity 0.15s ease;
+  transition: transform var(--dur-fast) var(--ease-out),
+    opacity var(--dur-fast) var(--ease-out),
+    background-color var(--dur-base) var(--ease-out),
+    box-shadow var(--dur-base) var(--ease-out);
 }
 .btn:active { transform: scale(0.98); }
 .btn:disabled { opacity: 0.5; cursor: not-allowed; transform: none; }
@@ -157,6 +171,10 @@ h3 { font-size: 18px; }
   color: var(--color-white);
 }
 .btn-secondary:hover { background: var(--color-green-900); }
+
+@media (hover: hover) {
+  .btn-primary:hover, .btn-secondary:hover { box-shadow: var(--shadow-sm); }
+}
 
 .btn-outline {
   background: transparent;
@@ -187,6 +205,12 @@ h3 { font-size: 18px; }
   overflow: hidden;
   box-shadow: var(--shadow-sm);
   position: relative;
+  transition: transform var(--dur-base) var(--ease-out),
+    box-shadow var(--dur-base) var(--ease-out);
+}
+.listing-card:active { transform: scale(0.98); }
+@media (hover: hover) {
+  .listing-card:hover { transform: translateY(-3px); box-shadow: var(--shadow-md); }
 }
 
 .listing-card::before {
@@ -319,8 +343,19 @@ h3 { font-size: 18px; }
   display: flex;
   align-items: center;
   gap: var(--space-2);
+  animation: toast-in var(--dur-base) var(--ease-out);
 }
 .toast.toast-error { background: var(--color-error); }
+.toast.is-leaving { animation: toast-out var(--dur-fast) var(--ease-out) forwards; }
+
+@keyframes toast-in {
+  from { opacity: 0; transform: translateY(12px) scale(0.98); }
+  to { opacity: 1; transform: none; }
+}
+@keyframes toast-out {
+  from { opacity: 1; transform: none; }
+  to { opacity: 0; transform: translateY(12px) scale(0.98); }
+}
 
 /* ---- Bottom navigation ---- */
 .bottom-nav {
@@ -346,11 +381,21 @@ h3 { font-size: 18px; }
   color: var(--color-ink-soft);
   min-height: var(--tap-min);
 }
+.bottom-nav__item { transition: color var(--dur-fast) var(--ease-out); }
 .bottom-nav__item.is-active { color: var(--color-green-700); font-weight: 600; }
 .bottom-nav__icon {
   display: flex;
   align-items: center;
   justify-content: center;
+  transition: transform var(--dur-fast) var(--ease-out);
+}
+.bottom-nav__item:active .bottom-nav__icon { transform: scale(0.86); }
+.bottom-nav__item.is-active .bottom-nav__icon { animation: nav-pop var(--dur-slow) var(--ease-out); }
+
+@keyframes nav-pop {
+  0% { transform: scale(0.7); }
+  60% { transform: scale(1.12); }
+  100% { transform: scale(1); }
 }
 
 /* The Sell action stands out, as specified */
@@ -381,18 +426,248 @@ h3 { font-size: 18px; }
   align-items: center;
   gap: 6px;
   min-width: 64px;
+  transition: transform var(--dur-fast) var(--ease-out);
 }
+.category-chip:active { transform: scale(0.94); }
 .category-chip__icon {
   width: 52px;
   height: 52px;
   border-radius: 50%;
   background: var(--color-white);
   border: 1px solid var(--color-line);
+  color: var(--color-green-700);
   display: flex;
   align-items: center;
   justify-content: center;
+  transition: border-color var(--dur-fast) var(--ease-out),
+    transform var(--dur-fast) var(--ease-out);
+}
+@media (hover: hover) {
+  .category-chip:hover .category-chip__icon {
+    border-color: var(--color-green-600);
+    transform: scale(1.06);
+  }
 }
 .category-chip__label { font-size: 12px; color: var(--color-ink-soft); text-align: center; }
+
+/* ---- Reveal animation ---- */
+/* Used on listing cards as they load. market.html sets an inline
+   animation-delay per card for a hand-tuned stagger; this nth-child
+   fallback gives the same effect anywhere that class is applied
+   without JS setting a delay (inline styles always win over this). */
+@keyframes fade-in-up {
+  from { opacity: 0; transform: translateY(8px); }
+  to { opacity: 1; transform: none; }
+}
+.fade-in-up { animation: fade-in-up var(--dur-slow) var(--ease-out) both; }
+.listing-grid > .fade-in-up:nth-child(1) { animation-delay: 0ms; }
+.listing-grid > .fade-in-up:nth-child(2) { animation-delay: 40ms; }
+.listing-grid > .fade-in-up:nth-child(3) { animation-delay: 80ms; }
+.listing-grid > .fade-in-up:nth-child(4) { animation-delay: 120ms; }
+.listing-grid > .fade-in-up:nth-child(5) { animation-delay: 160ms; }
+.listing-grid > .fade-in-up:nth-child(6) { animation-delay: 200ms; }
+.listing-grid > .fade-in-up:nth-child(7) { animation-delay: 240ms; }
+.listing-grid > .fade-in-up:nth-child(8) { animation-delay: 280ms; }
+.state-block { animation: fade-in-up var(--dur-slow) var(--ease-out) both; }
+
+/* ---- Skeleton loading ---- */
+.skeleton-card {
+  background: var(--color-white);
+  border: 1px solid var(--color-line);
+  border-radius: var(--radius-md);
+  padding: var(--space-3);
+}
+.skeleton-card__image,
+.skeleton-line {
+  border-radius: var(--radius-sm);
+  background: linear-gradient(90deg, var(--color-parchment-dark) 25%, #FBF8F0 50%, var(--color-parchment-dark) 75%);
+  background-size: 200% 100%;
+  animation: shimmer 1.4s ease-in-out infinite;
+}
+.skeleton-card__image { width: 100%; aspect-ratio: 4 / 3; margin-bottom: var(--space-3); }
+.skeleton-line { height: 10px; border-radius: 4px; }
+@keyframes shimmer {
+  0% { background-position: 200% 0; }
+  100% { background-position: -200% 0; }
+}
+
+/* ---- Sticky header (market.html) ---- */
+.sticky-header {
+  position: sticky;
+  top: 0;
+  z-index: 50;
+  background: var(--color-parchment);
+  padding-top: var(--space-2);
+  padding-bottom: var(--space-1);
+  transition: box-shadow var(--dur-base) var(--ease-out);
+}
+.sticky-header.is-scrolled { box-shadow: 0 4px 12px rgba(18, 51, 41, 0.1); }
+
+/* ---- Chip row / filter chips (market.html filter bar) ---- */
+.chip-row {
+  display: flex;
+  gap: var(--space-2);
+  overflow-x: auto;
+  padding-bottom: var(--space-2);
+  -webkit-overflow-scrolling: touch;
+  scrollbar-width: none;
+}
+.chip-row::-webkit-scrollbar { display: none; }
+.filter-chip {
+  flex-shrink: 0;
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  height: 36px;
+  padding: 0 var(--space-3);
+  border-radius: 20px;
+  border: 1.5px solid var(--color-line);
+  background: var(--color-white);
+  color: var(--color-ink);
+  font-size: 13px;
+  font-weight: 500;
+  white-space: nowrap;
+  transition: background var(--dur-fast) var(--ease-out),
+    border-color var(--dur-fast) var(--ease-out),
+    color var(--dur-fast) var(--ease-out),
+    transform var(--dur-fast) var(--ease-out);
+}
+.filter-chip:active { transform: scale(0.96); }
+.filter-chip.is-active {
+  background: var(--color-green-700);
+  border-color: var(--color-green-700);
+  color: var(--color-white);
+}
+.filter-chip__badge {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-width: 16px;
+  height: 16px;
+  padding: 0 4px;
+  border-radius: 8px;
+  background: var(--color-gold-500);
+  color: var(--color-green-900);
+  font-size: 10px;
+  font-weight: 700;
+}
+
+/* ---- Results summary (market.html) ---- */
+.results-summary {
+  font-size: 13px;
+  color: var(--color-ink-soft);
+  margin: var(--space-1) 0 var(--space-3);
+  min-height: 16px;
+}
+
+/* ---- Bottom sheet (filters / sort) ---- */
+.sheet-backdrop {
+  position: fixed;
+  inset: 0;
+  background: rgba(18, 51, 41, 0.4);
+  opacity: 0;
+  pointer-events: none;
+  transition: opacity var(--dur-base) var(--ease-out);
+  z-index: 200;
+}
+.sheet-backdrop.is-open { opacity: 1; pointer-events: auto; }
+.sheet {
+  position: fixed;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  margin: 0 auto;
+  max-width: var(--content-max);
+  max-height: 85vh;
+  background: var(--color-white);
+  border-radius: 20px 20px 0 0;
+  box-shadow: 0 -8px 24px rgba(18, 51, 41, 0.16);
+  z-index: 201;
+  display: flex;
+  flex-direction: column;
+  transform: translateY(100%);
+  transition: transform var(--dur-slow) var(--ease-out);
+}
+.sheet.is-open { transform: translateY(0); }
+@media (min-width: 768px) { .sheet { max-width: 480px; } }
+.sheet__handle {
+  width: 36px;
+  height: 4px;
+  border-radius: 2px;
+  background: var(--color-line);
+  margin: var(--space-3) auto var(--space-2);
+  flex-shrink: 0;
+}
+.sheet__header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 0 var(--space-4) var(--space-3);
+  border-bottom: 1px solid var(--color-line);
+  flex-shrink: 0;
+}
+.sheet__body { padding: var(--space-4); overflow-y: auto; }
+.sheet__footer {
+  display: flex;
+  gap: var(--space-3);
+  padding: var(--space-4);
+  border-top: 1px solid var(--color-line);
+  flex-shrink: 0;
+}
+.sheet__section { margin-bottom: var(--space-5); }
+.sheet__section-label {
+  display: block;
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--color-ink);
+  margin-bottom: var(--space-3);
+}
+
+/* ---- Toggle switch ---- */
+.toggle-row { display: flex; align-items: center; justify-content: space-between; }
+.toggle { position: relative; display: inline-block; width: 44px; height: 26px; flex-shrink: 0; }
+.toggle input { position: absolute; opacity: 0; width: 0; height: 0; }
+.toggle__track {
+  position: absolute;
+  inset: 0;
+  background: var(--color-line);
+  border-radius: 20px;
+  cursor: pointer;
+  transition: background var(--dur-base) var(--ease-out);
+}
+.toggle__track::before {
+  content: '';
+  position: absolute;
+  left: 3px;
+  top: 3px;
+  width: 20px;
+  height: 20px;
+  border-radius: 50%;
+  background: var(--color-white);
+  box-shadow: var(--shadow-sm);
+  transition: transform var(--dur-base) var(--ease-out);
+}
+.toggle input:checked + .toggle__track { background: var(--color-green-600); }
+.toggle input:checked + .toggle__track::before { transform: translateX(18px); }
+.toggle input:focus-visible + .toggle__track { outline: 3px solid var(--color-gold-500); outline-offset: 2px; }
+
+/* ---- Radio pill group (sort options) ---- */
+.radio-pill-group { display: flex; flex-direction: column; gap: var(--space-2); }
+.radio-pill {
+  display: flex;
+  align-items: center;
+  gap: var(--space-3);
+  padding: var(--space-3);
+  border: 1.5px solid var(--color-line);
+  border-radius: var(--radius-md);
+  cursor: pointer;
+  transition: border-color var(--dur-fast) var(--ease-out), background var(--dur-fast) var(--ease-out);
+}
+.radio-pill input { width: 18px; height: 18px; accent-color: var(--color-green-600); }
+.radio-pill:has(input:checked) { border-color: var(--color-green-600); background: #F1F7F3; }
+
+/* ---- Two-column field row (min/max price etc.) ---- */
+.field-row { display: grid; grid-template-columns: 1fr 1fr; gap: var(--space-3); }
 
 /* ---- Utility ---- */
 .text-center { text-align: center; }
