@@ -1,1 +1,454 @@
-dashboard-farmer.html
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
+<title>My Listings — Mlimi Market</title>
+<meta name="theme-color" content="#123329">
+
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Fraunces:wght@600;700&family=Inter:wght@400;500;600;700&family=JetBrains+Mono:wght@500;600&display=swap" rel="stylesheet">
+
+<link rel="stylesheet" href="css/shared.css">
+
+<style>
+  /* Page-specific styles for the farmer dashboard screen only */
+  .dash-header {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: var(--space-3);
+    padding: var(--space-4) 0 var(--space-5);
+    flex-wrap: wrap;
+  }
+  .dash-header h1 { font-size: 24px; }
+  .dash-header .btn { width: auto; padding: 0 var(--space-4); }
+
+  .section-heading {
+    display: flex;
+    align-items: baseline;
+    justify-content: space-between;
+    margin-bottom: var(--space-3);
+  }
+  section + section { margin-top: var(--space-8); }
+
+  /* ---- Stats row ---- */
+  .stats-row {
+    display: grid;
+    grid-template-columns: repeat(3, 1fr);
+    gap: var(--space-3);
+    margin-bottom: var(--space-6);
+  }
+  .stat-card {
+    background: var(--color-white);
+    border: 1px solid var(--color-line);
+    border-radius: var(--radius-md);
+    padding: var(--space-3);
+    text-align: center;
+  }
+  .stat-card__value {
+    font-family: var(--font-mono);
+    font-size: 20px;
+    font-weight: 600;
+    color: var(--color-green-900);
+  }
+  .stat-card__label {
+    font-size: 11px;
+    color: var(--color-ink-soft);
+    margin-top: 2px;
+  }
+
+  /* ---- Manage-listing card ---- */
+  .manage-listing-card {
+    display: flex;
+    gap: var(--space-3);
+    background: var(--color-white);
+    border: 1px solid var(--color-line);
+    border-radius: var(--radius-md);
+    padding: var(--space-3);
+    margin-bottom: var(--space-3);
+  }
+  .manage-listing-card__thumb {
+    width: 64px;
+    height: 64px;
+    border-radius: var(--radius-sm);
+    object-fit: cover;
+    background: var(--color-parchment-dark);
+    flex-shrink: 0;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    color: var(--color-line);
+  }
+  .manage-listing-card__body { flex: 1; min-width: 0; }
+  .manage-listing-card__top {
+    display: flex;
+    align-items: flex-start;
+    justify-content: space-between;
+    gap: var(--space-2);
+  }
+  .manage-listing-card__title {
+    font-family: var(--font-display);
+    font-weight: 600;
+    color: var(--color-green-900);
+    font-size: 15px;
+    margin-bottom: 2px;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+  }
+  .manage-listing-card__meta {
+    font-size: 12px;
+    color: var(--color-ink-soft);
+    display: flex;
+    gap: var(--space-2);
+    flex-wrap: wrap;
+    margin: 2px 0 var(--space-2);
+  }
+  .badge-status-live { background: #E4EFE9; color: var(--color-verified); }
+  .manage-listing-card__actions {
+    display: flex;
+    gap: var(--space-2);
+    flex-wrap: wrap;
+  }
+  .manage-listing-card__actions .btn {
+    width: auto;
+    min-height: 34px;
+    padding: 0 var(--space-3);
+    font-size: 13px;
+  }
+  .manage-listing-card__actions .btn-danger { border-width: 1.5px; }
+
+  /* ---- Enquiry card ---- */
+  .enquiry-card {
+    background: var(--color-white);
+    border: 1px solid var(--color-line);
+    border-radius: var(--radius-md);
+    padding: var(--space-3) var(--space-4);
+    margin-bottom: var(--space-3);
+  }
+  .enquiry-card__head {
+    display: flex;
+    align-items: center;
+    gap: var(--space-2);
+    margin-bottom: var(--space-2);
+  }
+  .enquiry-avatar {
+    width: 32px;
+    height: 32px;
+    border-radius: 50%;
+    background: var(--color-parchment-dark);
+    color: var(--color-green-700);
+    font-family: var(--font-display);
+    font-weight: 600;
+    font-size: 13px;
+    flex-shrink: 0;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+  }
+  .enquiry-card__name { font-weight: 600; font-size: 13px; color: var(--color-ink); }
+  .enquiry-card__sub { font-size: 11px; color: var(--color-ink-soft); }
+  .enquiry-card__listing {
+    font-size: 12px;
+    font-weight: 600;
+    color: var(--color-green-700);
+    margin-bottom: 6px;
+    display: inline-block;
+  }
+  .enquiry-card__message {
+    font-size: 14px;
+    color: var(--color-ink);
+    white-space: pre-wrap;
+  }
+</style>
+</head>
+<body>
+
+<div class="page">
+
+  <div class="dash-header">
+    <h1 class="font-display">My Listings</h1>
+    <a href="sell.html" class="btn btn-primary">+ New listing</a>
+  </div>
+
+  <div class="stats-row" id="statsRow" hidden>
+    <div class="stat-card">
+      <div class="stat-card__value" id="statLive">0</div>
+      <div class="stat-card__label">Live</div>
+    </div>
+    <div class="stat-card">
+      <div class="stat-card__value" id="statPending">0</div>
+      <div class="stat-card__label">Pending review</div>
+    </div>
+    <div class="stat-card">
+      <div class="stat-card__value" id="statSold">0</div>
+      <div class="stat-card__label">Sold</div>
+    </div>
+  </div>
+
+  <section>
+    <div class="section-heading">
+      <h2>My Listings</h2>
+    </div>
+    <div id="listingsContainer">
+      <div class="state-block"><div class="spinner"></div></div>
+    </div>
+  </section>
+
+  <section>
+    <div class="section-heading">
+      <h2>Enquiries</h2>
+    </div>
+    <div id="enquiriesContainer">
+      <div class="state-block"><div class="spinner"></div></div>
+    </div>
+  </section>
+
+</div>
+
+<!-- Firebase (compat SDK — plain global objects, no bundler needed) -->
+<script src="https://www.gstatic.com/firebasejs/10.13.1/firebase-app-compat.js"></script>
+<script src="https://www.gstatic.com/firebasejs/10.13.1/firebase-firestore-compat.js"></script>
+<script src="https://www.gstatic.com/firebasejs/10.13.1/firebase-auth-compat.js"></script>
+
+<script src="js/firebase-config.js"></script>
+<script src="js/auth.js"></script>
+<script src="js/icons.js"></script>
+<script src="js/categories.js"></script>
+<script src="js/firestore-helpers.js"></script>
+<script src="js/ui-helpers.js"></script>
+<script src="js/nav.js"></script>
+
+<script>
+  let currentUser = null;
+
+  // Caches so rendering enquiries doesn't re-fetch the same buyer
+  // profile or listing doc once per enquiry — cheap dedupe, not a
+  // real cache layer.
+  const buyerProfileCache = {};
+  const listingTitleCache = {};
+
+  /* ---------- Small local helpers ---------- */
+  function initialsFrom(name) {
+    const raw = (name || "?").trim().split(/\s+/).slice(0, 2).map((w) => w[0].toUpperCase()).join("");
+    return escapeHtml(raw);
+  }
+
+  function statusBadgeHTML(listing) {
+    if (!listing.isApproved) return `<span class="badge badge-status-pending">Pending review</span>`;
+    if (listing.status === "sold") return `<span class="badge badge-status-sold">Sold</span>`;
+    return `<span class="badge badge-status-live">Live</span>`;
+  }
+
+  /* ---------- Stats ---------- */
+  function renderStats(listings) {
+    const live = listings.filter((l) => l.isApproved && l.status !== "sold").length;
+    const pending = listings.filter((l) => !l.isApproved).length;
+    const sold = listings.filter((l) => l.status === "sold").length;
+
+    document.getElementById("statLive").textContent = live;
+    document.getElementById("statPending").textContent = pending;
+    document.getElementById("statSold").textContent = sold;
+    document.getElementById("statsRow").hidden = listings.length === 0;
+  }
+
+  /* ---------- My Listings ---------- */
+  function manageListingCardHTML(listing) {
+    const category = getCategoryBySlug(listing.categorySlug);
+    const image = listing.imageUrls && listing.imageUrls[0];
+
+    // Every one of these fields is user-submitted (via sell.html) —
+    // must be escaped before it goes into innerHTML below. See the
+    // same reasoning in js/ui-helpers.js's listingCardHTML().
+    const safeId = encodeURIComponent(listing.id);
+    const safeProductName = escapeHtml(listing.productName || "Untitled listing");
+    const safeDistrict = escapeHtml(listing.district || "");
+    const safeUnit = escapeHtml(listing.unit || "");
+    const safeQuantity = listing.quantity != null ? escapeHtml(listing.quantity) : "";
+
+    const thumbHTML = image
+      ? `<img class="manage-listing-card__thumb" src="${escapeHtml(image)}" alt="${safeProductName}" loading="lazy">`
+      : `<div class="manage-listing-card__thumb">${icon(category ? category.icon : "sprout", 24)}</div>`;
+
+    const isSold = listing.status === "sold";
+    const toggleLabel = isSold ? "Mark available" : "Mark as sold";
+
+    return `
+      <div class="manage-listing-card" data-listing-id="${safeId}">
+        ${thumbHTML}
+        <div class="manage-listing-card__body">
+          <div class="manage-listing-card__top">
+            <div class="manage-listing-card__title">${safeProductName}</div>
+            ${statusBadgeHTML(listing)}
+          </div>
+          <div class="manage-listing-card__meta">
+            <span>${formatMoney(listing.price)} ${priceTypeLabel(listing.priceType)}</span>
+            <span>${safeQuantity} ${safeUnit}</span>
+            <span>${safeDistrict}</span>
+          </div>
+          <div class="manage-listing-card__actions">
+            <a class="btn btn-outline" href="listing.html?id=${safeId}">View</a>
+            <a class="btn btn-outline" href="sell.html?id=${safeId}">Edit</a>
+            <button type="button" class="btn btn-outline" data-toggle-id="${safeId}" data-current-status="${listing.status}">${toggleLabel}</button>
+            <button type="button" class="btn btn-danger" data-delete-id="${safeId}">Delete</button>
+          </div>
+        </div>
+      </div>
+    `;
+  }
+
+  async function loadListings() {
+    const container = document.getElementById("listingsContainer");
+    try {
+      const listings = await getListingsBySeller(currentUser.uid);
+      renderStats(listings);
+
+      if (!listings.length) {
+        renderState(container, "empty", {
+          title: "No listings yet",
+          message: "List your first produce and it'll show up here once you publish it.",
+        });
+        return;
+      }
+
+      container.innerHTML = listings.map(manageListingCardHTML).join("");
+
+      container.querySelectorAll("[data-toggle-id]").forEach((btn) => {
+        btn.addEventListener("click", () => handleToggleStatus(btn.dataset.toggleId, btn.dataset.currentStatus, btn));
+      });
+      container.querySelectorAll("[data-delete-id]").forEach((btn) => {
+        btn.addEventListener("click", () => handleDeleteListing(btn.dataset.deleteId, btn));
+      });
+    } catch (err) {
+      console.error("Failed to load your listings:", err);
+      // NOTE: if this throws with a "requires an index" message the
+      // first time this query runs against a fresh Firestore project,
+      // the console error includes a direct link to create the exact
+      // composite index needed (sellerId + createdAt) — click it once
+      // and this page will work from then on.
+      renderState(container, "error", {
+        title: "Couldn't load your listings",
+        message: "Check your connection and try again.",
+        retryLabel: "Retry",
+        onRetry: loadListings,
+      });
+    }
+  }
+
+  async function handleToggleStatus(listingId, currentStatus, btn) {
+    const nextStatus = currentStatus === "sold" ? "available" : "sold";
+    btn.disabled = true;
+    try {
+      await updateListing(listingId, { status: nextStatus });
+      showToast(nextStatus === "sold" ? "Marked as sold" : "Marked as available");
+      await loadListings();
+    } catch (err) {
+      console.error("Failed to update listing status:", err);
+      showToast("Couldn't update listing. Try again.", "error");
+      btn.disabled = false;
+    }
+  }
+
+  async function handleDeleteListing(listingId, btn) {
+    if (!confirm("Delete this listing? This can't be undone.")) return;
+    btn.disabled = true;
+    try {
+      await deleteListing(listingId);
+      showToast("Listing deleted");
+      await loadListings();
+    } catch (err) {
+      console.error("Failed to delete listing:", err);
+      showToast("Couldn't delete listing. Try again.", "error");
+      btn.disabled = false;
+    }
+  }
+
+  /* ---------- Enquiries ---------- */
+  async function getCachedBuyerProfile(buyerId) {
+    if (buyerProfileCache[buyerId] !== undefined) return buyerProfileCache[buyerId];
+    const profile = await getUserProfileById(buyerId).catch(() => null);
+    buyerProfileCache[buyerId] = profile;
+    return profile;
+  }
+
+  async function getCachedListingTitle(listingId) {
+    if (listingTitleCache[listingId] !== undefined) return listingTitleCache[listingId];
+    const listing = await getListingById(listingId).catch(() => null);
+    listingTitleCache[listingId] = listing;
+    return listing;
+  }
+
+  function enquiryCardHTML(enquiry, buyerProfile, listing) {
+    const safeBuyerName = escapeHtml((buyerProfile && buyerProfile.fullName) || "A buyer");
+    const safeMessage = escapeHtml(enquiry.message || "");
+    const safeListingId = encodeURIComponent(enquiry.listingId || "");
+
+    const listingLinkHTML = listing
+      ? `<a class="enquiry-card__listing" href="listing.html?id=${safeListingId}">${escapeHtml(listing.productName || "Untitled listing")}</a>`
+      : `<span class="enquiry-card__listing" style="color:var(--color-ink-soft);">Listing removed</span>`;
+
+    return `
+      <div class="enquiry-card">
+        <div class="enquiry-card__head">
+          <div class="enquiry-avatar">${initialsFrom(buyerProfile && buyerProfile.fullName)}</div>
+          <div>
+            <div class="enquiry-card__name">${safeBuyerName}</div>
+            <div class="enquiry-card__sub">${formatRelativeTime(enquiry.createdAt)}</div>
+          </div>
+        </div>
+        ${listingLinkHTML}
+        <div class="enquiry-card__message">${safeMessage}</div>
+      </div>
+    `;
+  }
+
+  async function loadEnquiries() {
+    const container = document.getElementById("enquiriesContainer");
+    try {
+      const enquiries = await getEnquiriesForSeller(currentUser.uid);
+
+      if (!enquiries.length) {
+        renderState(container, "empty", {
+          title: "No enquiries yet",
+          message: "When a buyer messages you about a listing, it'll show up here.",
+        });
+        return;
+      }
+
+      const enriched = await Promise.all(enquiries.map(async (enq) => ({
+        enquiry: enq,
+        buyerProfile: await getCachedBuyerProfile(enq.buyerId),
+        listing: await getCachedListingTitle(enq.listingId),
+      })));
+
+      container.innerHTML = enriched
+        .map(({ enquiry, buyerProfile, listing }) => enquiryCardHTML(enquiry, buyerProfile, listing))
+        .join("");
+    } catch (err) {
+      console.error("Failed to load enquiries:", err);
+      renderState(container, "error", {
+        title: "Couldn't load enquiries",
+        message: "Check your connection and try again.",
+        retryLabel: "Retry",
+        onRetry: loadEnquiries,
+      });
+    }
+  }
+
+  /* ---------- Init ---------- */
+  async function init() {
+    const user = await requireAuth(); // redirects to login.html?redirect=dashboard-farmer.html if signed out
+    if (!user) return;
+
+    currentUser = user;
+    await Promise.all([loadListings(), loadEnquiries()]);
+  }
+
+  init();
+  renderBottomNav("sell");
+</script>
+
+</body>
+</html>
