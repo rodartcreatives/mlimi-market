@@ -119,6 +119,20 @@
     return sanitizeRedirect(dest);
   }
 
+  /**
+   * Builds the URL to send a user to when their profile still
+   * needs completing (new Google sign-in, or a profile missing
+   * role/phone/district). Carries the original redirect target
+   * through as profile.html's own "redirect" param, so once they
+   * finish the profile-completion form they land back where they
+   * were originally headed instead of always bouncing to
+   * index.html. profile.html re-validates this itself via its own
+   * sanitizeRedirect() call — this isn't the only line of defense.
+   */
+  function buildProfileCompletionUrl() {
+    return `profile.html?complete=1&redirect=${encodeURIComponent(getRedirectDestination())}`;
+  }
+
   // Carry the redirect param through to register.html.
   (function preserveRedirectOnRegisterLink() {
     const dest = new URLSearchParams(location.search).get("redirect");
@@ -194,7 +208,7 @@
       const { profile } = await ensureUserProfile(user);
 
       if (profileNeedsCompletion(profile)) {
-        window.location.href = "profile.html?complete=1";
+        window.location.href = buildProfileCompletionUrl();
       } else {
         window.location.href = getRedirectDestination();
       }
@@ -219,7 +233,7 @@
       if (googleUser) {
         const { profile, isNew } = await ensureUserProfile(googleUser);
         if (isNew || profileNeedsCompletion(profile)) {
-          window.location.href = "profile.html?complete=1";
+          window.location.href = buildProfileCompletionUrl();
         } else {
           window.location.href = getRedirectDestination();
         }
