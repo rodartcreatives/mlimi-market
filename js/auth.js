@@ -142,26 +142,34 @@ async function handleGoogleRedirectResult() {
  * Ensures a Firestore profile document exists for a signed-in
  * user. Needed because Google Sign-In only gives us a name, email,
  * and photo — not phone, role, or district, which our schema
- * requires. On first sign-in this creates a minimal profile with
- * those fields blank; the calling page should then check
+ * requires. On first sign-in this creates a minimal public profile
+ * plus a private/contact doc (see firestore-helpers.js) with those
+ * fields blank; the calling page should then check
  * profileNeedsCompletion() and route the user to fill them in
  * before they can list or contact anyone.
  *
  * Safe to call after every sign-in (Google or email) — it's a
- * no-op if a profile already exists.
+ * no-op (beyond re-reading) if a profile already exists.
+ *
+ * The returned `profile` object merges the public doc with the
+ * private/contact doc so callers can keep reading profile.phone /
+ * profile.email exactly as before, even though neither field lives
+ * on the public users/{uid} doc anymore.
  */
 async function ensureUserProfile(user) {
   const ref = db.collection("users").doc(user.uid);
   const doc = await ref.get();
 
   if (doc.exists) {
-    return { profile: { id: doc.id, ...doc.data() }, isNew: false };
+    const privateContact = await getUserPrivateContact(user.uid).catch(() => null);
+    return {
+      profile: { id: doc.id, ...doc.data(), ...(privateContact || {}) },
+      isNew: false,
+    };
   }
 
-  const minimalProfile = {
+  const minimalPublicProfile = {
     fullName: user.displayName || "",
-    email: user.email || "",
-    phone: "",
     role: "", // "farmer" | "buyer" | "both" — set during profile completion
     district: "",
     location: "",
@@ -169,12 +177,24 @@ async function ensureUserProfile(user) {
     avatarUrl: user.photoURL || "",
     isVerified: false,
     whatsappPublic: false,
+    publicPhone: "", // only ever set to a real number when whatsappPublic is on
     createdAt: firebase.firestore.FieldValue.serverTimestamp(),
     updatedAt: firebase.firestore.FieldValue.serverTimestamp(),
   };
+  const privateContact = {
+    phone: "",
+    email: user.email || "",
+  };
 
-  await ref.set(minimalProfile);
-  return { profile: { id: user.uid, ...minimalProfile }, isNew: true };
+  const batch = db.batch();
+  batch.set(ref, minimalPublicProfile);
+  batch.set(ref.collection("private").doc("contact"), privateContact);
+  await batch.commit();
+
+  return {
+    profile: { id: user.uid, ...minimalPublicProfile, ...privateContact },
+    isNew: true,
+  };
 }
 
 /**
@@ -188,14 +208,17 @@ function profileNeedsCompletion(profile) {
 }
 
 /**
- * Fetches the current user's profile document from Firestore.
- * Returns null if not logged in or no profile exists yet.
+ * Fetches the current user's full profile (public doc merged with
+ * the private/contact doc) from Firestore. Returns null if not
+ * logged in or no profile exists yet.
  */
 async function getCurrentUserProfile() {
   const user = auth.currentUser;
   if (!user) return null;
   const doc = await db.collection("users").doc(user.uid).get();
-  return doc.exists ? { id: doc.id, ...doc.data() } : null;
+  if (!doc.exists) return null;
+  const privateContact = await getUserPrivateContact(user.uid).catch(() => null);
+  return { id: doc.id, ...doc.data(), ...(privateContact || {}) };
 }
 
 /* ---------- Guards ---------- */
