@@ -288,7 +288,11 @@
   function renderListing(listing, sellerProfile) {
     const category = getCategoryBySlug(listing.categorySlug);
     const isSold = listing.status === "sold";
-    const canShowDirectContact = !!(sellerProfile && sellerProfile.whatsappPublic && sellerProfile.phone);
+    // publicPhone is the ONLY phone-shaped field on the public
+    // users/{uid} doc — it's populated (see profile.html) only when
+    // the seller has whatsappPublic turned on. The real phone number
+    // lives in users/{uid}/private/contact and is never exposed here.
+    const canShowDirectContact = !!(sellerProfile && sellerProfile.whatsappPublic && sellerProfile.publicPhone);
 
     // Every field below comes from a listing/user doc a signed-in
     // user controls — escape before interpolating into innerHTML.
@@ -324,7 +328,7 @@
         </div>
         ${canShowDirectContact ? `
           <div class="seller-card__actions">
-            <a class="icon-btn" href="${escapeHtml(buildCallLink(sellerProfile.phone))}" aria-label="Call seller">${icon("phone", 18)}</a>
+            <a class="icon-btn" href="${escapeHtml(buildCallLink(sellerProfile.publicPhone))}" aria-label="Call seller">${icon("phone", 18)}</a>
           </div>
         ` : ""}
       </div>
@@ -342,7 +346,7 @@
         <div class="detail-action-bar">
           <div class="detail-action-bar-inner">
             ${canShowDirectContact
-              ? `<a class="btn btn-primary" id="whatsappBtn" href="${buildWhatsAppLink(sellerProfile.phone, listing.productName || "produce")}" target="_blank" rel="noopener">${icon("phone", 18)} WhatsApp Seller</a>`
+              ? `<a class="btn btn-primary" id="whatsappBtn" href="${buildWhatsAppLink(sellerProfile.publicPhone, listing.productName || "produce")}" target="_blank" rel="noopener">${icon("phone", 18)} WhatsApp Seller</a>`
               : `<button type="button" class="btn btn-primary" id="enquiryBtn">Message Seller</button>`
             }
           </div>
