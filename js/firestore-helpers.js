@@ -265,9 +265,40 @@ async function getUserProfileById(userId) {
   return doc.exists ? { id: doc.id, ...doc.data() } : null;
 }
 
+/**
+ * Private contact info (phone, email) lives in a subcollection,
+ * NOT on the public users/{uid} doc — see firestore.rules. Only the
+ * account owner can read or write this document; calling this for
+ * anyone other than the signed-in user will fail the security rule.
+ */
+async function getUserPrivateContact(userId) {
+  const doc = await db.collection("users").doc(userId)
+    .collection("private").doc("contact").get();
+  return doc.exists ? doc.data() : null;
+}
+
+async function updateUserPrivateContact(userId, updates) {
+  await db.collection("users").doc(userId)
+    .collection("private").doc("contact")
+    .set(updates, { merge: true });
+}
+
+/**
+ * Updates the PUBLIC users/{uid} doc only. phone and email must
+ * never land here — see users/{uid}/private/contact and
+ * updateUserPrivateContact() above for those two fields instead.
+ * Any phone/email passed in `updates` is stripped before the write,
+ * and any legacy copy left over on an account from before this
+ * public/private split existed is actively deleted on every save —
+ * this is how older accounts self-migrate over time as people
+ * revisit profile.html.
+ */
 async function updateUserProfile(userId, updates) {
+  const { phone, email, ...safeUpdates } = updates;
   await db.collection("users").doc(userId).set({
-    ...updates,
+    ...safeUpdates,
+    phone: firebase.firestore.FieldValue.delete(),
+    email: firebase.firestore.FieldValue.delete(),
     updatedAt: firebase.firestore.FieldValue.serverTimestamp(),
   }, { merge: true });
 }
