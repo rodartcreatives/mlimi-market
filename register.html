@@ -152,6 +152,19 @@
     return sanitizeRedirect(dest);
   }
 
+  /**
+   * Builds the URL to send a brand-new user to for profile
+   * completion, carrying the original redirect target through as
+   * profile.html's own "redirect" param — so after they finish the
+   * profile form they land back where they were originally headed
+   * (e.g. sell.html) instead of always bouncing to index.html.
+   * profile.html re-validates this itself via its own
+   * sanitizeRedirect() call — this isn't the only line of defense.
+   */
+  function buildProfileCompletionUrl() {
+    return `profile.html?complete=1&redirect=${encodeURIComponent(getRedirectDestination())}`;
+  }
+
   // Carry the redirect param through to login.html if the user
   // decides to log in instead of registering.
   (function preserveRedirectOnLoginLink() {
@@ -244,6 +257,9 @@
         updatedAt: firebase.firestore.FieldValue.serverTimestamp(),
       });
 
+      // Registration already collects role/phone/district (unlike
+      // Google sign-in), so this account never technically "needs
+      // completion" — straight to the original destination.
       window.location.href = getRedirectDestination();
     } catch (err) {
       console.error("Registration failed:", err);
@@ -266,7 +282,7 @@
       if (googleUser) {
         const { profile, isNew } = await ensureUserProfile(googleUser);
         if (isNew || profileNeedsCompletion(profile)) {
-          window.location.href = "profile.html?complete=1";
+          window.location.href = buildProfileCompletionUrl();
         } else {
           window.location.href = getRedirectDestination();
         }
