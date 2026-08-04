@@ -1,0 +1,526 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
+<title>Admin — Mlimi Market</title>
+<meta name="theme-color" content="#123329">
+<meta name="robots" content="noindex, nofollow">
+
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Fraunces:wght@600;700&family=Inter:wght@400;500;600;700&family=JetBrains+Mono:wght@500;600&display=swap" rel="stylesheet">
+
+<link rel="stylesheet" href="css/shared.css">
+
+<style>
+  /* Page-specific styles for the admin screen only. No bottom
+     nav on this page — it's a back-office area, not part of the
+     regular farmer/buyer navigation. */
+  body { padding-bottom: var(--space-8); }
+
+  .dash-header {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: var(--space-3);
+    padding: var(--space-4) 0 var(--space-5);
+    flex-wrap: wrap;
+  }
+  .dash-header h1 { font-size: 24px; }
+  .dash-header__actions { display: flex; gap: var(--space-2); }
+  .dash-header__actions .btn { width: auto; padding: 0 var(--space-4); }
+
+  .section-heading {
+    display: flex;
+    align-items: center;
+    gap: var(--space-2);
+    margin-bottom: var(--space-3);
+  }
+  .section-heading .badge { background: var(--color-gold-500); color: var(--color-green-900); }
+  section + section { margin-top: var(--space-8); }
+
+  /* ---- Shared admin row card ---- */
+  .admin-card {
+    background: var(--color-white);
+    border: 1px solid var(--color-line);
+    border-radius: var(--radius-md);
+    padding: var(--space-3);
+    margin-bottom: var(--space-3);
+  }
+  .admin-card__top {
+    display: flex;
+    gap: var(--space-3);
+  }
+  .admin-card__thumb {
+    width: 56px;
+    height: 56px;
+    border-radius: var(--radius-sm);
+    object-fit: cover;
+    background: var(--color-parchment-dark);
+    flex-shrink: 0;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    color: var(--color-line);
+  }
+  .admin-card__body { flex: 1; min-width: 0; }
+  .admin-card__title {
+    font-family: var(--font-display);
+    font-weight: 600;
+    color: var(--color-green-900);
+    font-size: 15px;
+    margin-bottom: 2px;
+  }
+  .admin-card__meta {
+    font-size: 12px;
+    color: var(--color-ink-soft);
+    display: flex;
+    gap: var(--space-2);
+    flex-wrap: wrap;
+  }
+  .admin-card__text {
+    font-size: 14px;
+    color: var(--color-ink);
+    white-space: pre-wrap;
+    margin-top: var(--space-2);
+  }
+  .admin-card__actions {
+    display: flex;
+    gap: var(--space-2);
+    flex-wrap: wrap;
+    margin-top: var(--space-3);
+  }
+  .admin-card__actions .btn {
+    width: auto;
+    min-height: 34px;
+    padding: 0 var(--space-3);
+    font-size: 13px;
+  }
+
+  .admin-avatar {
+    width: 44px;
+    height: 44px;
+    border-radius: 50%;
+    background: var(--color-parchment-dark);
+    color: var(--color-green-700);
+    font-family: var(--font-display);
+    font-weight: 600;
+    font-size: 15px;
+    flex-shrink: 0;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+  }
+
+  .report-reason-tag {
+    display: inline-block;
+    font-size: 11px;
+    font-weight: 600;
+    color: var(--color-error);
+    background: var(--color-error-bg);
+    padding: 2px 8px;
+    border-radius: 12px;
+    margin-bottom: 6px;
+  }
+</style>
+</head>
+<body>
+
+<div class="page">
+
+  <div class="dash-header">
+    <h1 class="font-display">Admin Dashboard</h1>
+    <div class="dash-header__actions">
+      <a href="index.html" class="btn btn-outline">View site</a>
+      <button type="button" class="btn btn-outline" id="logoutBtn">Log out</button>
+    </div>
+  </div>
+
+  <section>
+    <div class="section-heading">
+      <h2>Pending listings</h2>
+      <span class="badge" id="pendingCountBadge" hidden>0</span>
+    </div>
+    <div id="pendingContainer">
+      <div class="state-block"><div class="spinner"></div></div>
+    </div>
+  </section>
+
+  <section>
+    <div class="section-heading">
+      <h2>Reports</h2>
+      <span class="badge" id="reportsCountBadge" hidden>0</span>
+    </div>
+    <div id="reportsContainer">
+      <div class="state-block"><div class="spinner"></div></div>
+    </div>
+  </section>
+
+  <section>
+    <div class="section-heading">
+      <h2>Verify sellers</h2>
+    </div>
+    <p class="field-hint mb-4">Most recently joined users. Verification can only be granted here — never by the user themselves.</p>
+    <div id="usersContainer">
+      <div class="state-block"><div class="spinner"></div></div>
+    </div>
+  </section>
+
+</div>
+
+<!-- Firebase (compat SDK — plain global objects, no bundler needed) -->
+<script src="https://www.gstatic.com/firebasejs/10.13.1/firebase-app-compat.js"></script>
+<script src="https://www.gstatic.com/firebasejs/10.13.1/firebase-firestore-compat.js"></script>
+<script src="https://www.gstatic.com/firebasejs/10.13.1/firebase-auth-compat.js"></script>
+
+<script src="js/firebase-config.js"></script>
+<script src="js/auth.js"></script>
+<script src="js/icons.js"></script>
+<script src="js/categories.js"></script>
+<script src="js/firestore-helpers.js"></script>
+<script src="js/ui-helpers.js"></script>
+
+<script>
+  // Caches so the reports section doesn't re-fetch the same
+  // reporter profile or listing doc once per report.
+  const profileCache = {};
+  const listingCache = {};
+
+  function initialsFrom(name) {
+    const raw = (name || "?").trim().split(/\s+/).slice(0, 2).map((w) => w[0].toUpperCase()).join("");
+    return escapeHtml(raw);
+  }
+
+  async function getCachedProfile(userId) {
+    if (profileCache[userId] !== undefined) return profileCache[userId];
+    const profile = await getUserProfileById(userId).catch(() => null);
+    profileCache[userId] = profile;
+    return profile;
+  }
+
+  async function getCachedListing(listingId) {
+    if (listingCache[listingId] !== undefined) return listingCache[listingId];
+    const listing = await getListingById(listingId).catch(() => null);
+    listingCache[listingId] = listing;
+    return listing;
+  }
+
+  /* ---------- Pending listings ---------- */
+  function pendingListingCardHTML(listing) {
+    const category = getCategoryBySlug(listing.categorySlug);
+    const image = listing.imageUrls && listing.imageUrls[0];
+
+    const safeId = encodeURIComponent(listing.id);
+    const safeProductName = escapeHtml(listing.productName || "Untitled listing");
+    const safeSellerName = escapeHtml(listing.sellerName || "Unknown seller");
+    const safeDistrict = escapeHtml(listing.district || "");
+    const safeUnit = escapeHtml(listing.unit || "");
+    const safeQuantity = listing.quantity != null ? escapeHtml(listing.quantity) : "";
+
+    const thumbHTML = image
+      ? `<img class="admin-card__thumb" src="${escapeHtml(image)}" alt="${safeProductName}" loading="lazy">`
+      : `<div class="admin-card__thumb">${icon(category ? category.icon : "sprout", 22)}</div>`;
+
+    return `
+      <div class="admin-card" data-listing-id="${safeId}">
+        <div class="admin-card__top">
+          ${thumbHTML}
+          <div class="admin-card__body">
+            <div class="admin-card__title">${safeProductName}</div>
+            <div class="admin-card__meta">
+              <span>${formatMoney(listing.price)} ${priceTypeLabel(listing.priceType)}</span>
+              <span>${safeQuantity} ${safeUnit}</span>
+              <span>${safeDistrict}</span>
+            </div>
+            <div class="admin-card__meta" style="margin-top:4px;">
+              <span>By ${safeSellerName}</span>
+              <span>${formatRelativeTime(listing.createdAt)}</span>
+            </div>
+          </div>
+        </div>
+        <div class="admin-card__actions">
+          <a class="btn btn-outline" href="listing.html?id=${safeId}">Preview</a>
+          <button type="button" class="btn btn-primary" data-approve-id="${safeId}">Approve</button>
+          <button type="button" class="btn btn-danger" data-reject-id="${safeId}">Reject &amp; delete</button>
+        </div>
+      </div>
+    `;
+  }
+
+  async function loadPendingListings() {
+    const container = document.getElementById("pendingContainer");
+    const badge = document.getElementById("pendingCountBadge");
+    try {
+      const listings = await getPendingListings();
+      badge.hidden = listings.length === 0;
+      badge.textContent = listings.length;
+
+      if (!listings.length) {
+        renderState(container, "empty", {
+          title: "Nothing to review",
+          message: "New listings will appear here for approval before they go live.",
+        });
+        return;
+      }
+
+      container.innerHTML = listings.map(pendingListingCardHTML).join("");
+
+      container.querySelectorAll("[data-approve-id]").forEach((btn) => {
+        btn.addEventListener("click", () => handleApprove(btn.dataset.approveId, btn));
+      });
+      container.querySelectorAll("[data-reject-id]").forEach((btn) => {
+        btn.addEventListener("click", () => handleReject(btn.dataset.rejectId, btn));
+      });
+    } catch (err) {
+      console.error("Failed to load pending listings:", err);
+      // NOTE: if this throws a "requires an index" error the first
+      // time this query runs against a fresh Firestore project, the
+      // console error includes a direct link to create the exact
+      // composite index needed (isApproved + createdAt) — click it
+      // once and this section will work from then on.
+      renderState(container, "error", {
+        title: "Couldn't load pending listings",
+        message: "Check your connection and try again.",
+        retryLabel: "Retry",
+        onRetry: loadPendingListings,
+      });
+    }
+  }
+
+  async function handleApprove(listingId, btn) {
+    btn.disabled = true;
+    try {
+      await approveListing(listingId);
+      showToast("Listing approved");
+      await loadPendingListings();
+    } catch (err) {
+      console.error("Failed to approve listing:", err);
+      showToast("Couldn't approve listing. Try again.", "error");
+      btn.disabled = false;
+    }
+  }
+
+  async function handleReject(listingId, btn) {
+    if (!confirm("Reject and permanently delete this listing?")) return;
+    btn.disabled = true;
+    try {
+      await deleteListing(listingId);
+      showToast("Listing rejected and deleted");
+      await loadPendingListings();
+    } catch (err) {
+      console.error("Failed to reject listing:", err);
+      showToast("Couldn't reject listing. Try again.", "error");
+      btn.disabled = false;
+    }
+  }
+
+  /* ---------- Reports ---------- */
+  function reportCardHTML(report, reporterProfile, listing) {
+    const safeReporterName = escapeHtml((reporterProfile && reporterProfile.fullName) || "A user");
+    const safeReason = escapeHtml(report.reason || "No reason given");
+    const safeDescription = escapeHtml(report.description || "");
+    const safeListingId = encodeURIComponent(report.listingId || "");
+    const safeReportId = encodeURIComponent(report.id);
+
+    const listingLinkHTML = listing
+      ? `<a href="listing.html?id=${safeListingId}" style="font-weight:600;">${escapeHtml(listing.productName || "Untitled listing")}</a>`
+      : `<span style="color:var(--color-ink-soft);">Listing removed</span>`;
+
+    return `
+      <div class="admin-card" data-report-id="${safeReportId}">
+        <span class="report-reason-tag">${safeReason}</span>
+        <div class="admin-card__meta">
+          <span>Reported by ${safeReporterName}</span>
+          <span>${formatRelativeTime(report.createdAt)}</span>
+        </div>
+        <div style="margin-top:6px;font-size:13px;">${listingLinkHTML}</div>
+        ${safeDescription ? `<div class="admin-card__text">${safeDescription}</div>` : ""}
+        <div class="admin-card__actions">
+          <button type="button" class="btn btn-outline" data-resolve-id="${safeReportId}">Mark resolved</button>
+          <button type="button" class="btn btn-danger" data-delete-report-id="${safeReportId}">Delete report</button>
+        </div>
+      </div>
+    `;
+  }
+
+  async function loadReports() {
+    const container = document.getElementById("reportsContainer");
+    const badge = document.getElementById("reportsCountBadge");
+    try {
+      const reports = await getOpenReports();
+      badge.hidden = reports.length === 0;
+      badge.textContent = reports.length;
+
+      if (!reports.length) {
+        renderState(container, "empty", {
+          icon: icon("badgeCheck", 40),
+          title: "No open reports",
+          message: "Reports submitted by users will show up here.",
+        });
+        return;
+      }
+
+      const enriched = await Promise.all(reports.map(async (report) => ({
+        report,
+        reporterProfile: await getCachedProfile(report.reporterId),
+        listing: await getCachedListing(report.listingId),
+      })));
+
+      container.innerHTML = enriched
+        .map(({ report, reporterProfile, listing }) => reportCardHTML(report, reporterProfile, listing))
+        .join("");
+
+      container.querySelectorAll("[data-resolve-id]").forEach((btn) => {
+        btn.addEventListener("click", () => handleResolveReport(btn.dataset.resolveId, btn));
+      });
+      container.querySelectorAll("[data-delete-report-id]").forEach((btn) => {
+        btn.addEventListener("click", () => handleDeleteReport(btn.dataset.deleteReportId, btn));
+      });
+    } catch (err) {
+      console.error("Failed to load reports:", err);
+      // Same composite-index note as pending listings above
+      // (status + createdAt) if this is the first time it runs.
+      renderState(container, "error", {
+        title: "Couldn't load reports",
+        message: "Check your connection and try again.",
+        retryLabel: "Retry",
+        onRetry: loadReports,
+      });
+    }
+  }
+
+  async function handleResolveReport(reportId, btn) {
+    btn.disabled = true;
+    try {
+      await resolveReport(reportId);
+      showToast("Report marked resolved");
+      await loadReports();
+    } catch (err) {
+      console.error("Failed to resolve report:", err);
+      showToast("Couldn't update report. Try again.", "error");
+      btn.disabled = false;
+    }
+  }
+
+  async function handleDeleteReport(reportId, btn) {
+    if (!confirm("Delete this report?")) return;
+    btn.disabled = true;
+    try {
+      await deleteReport(reportId);
+      showToast("Report deleted");
+      await loadReports();
+    } catch (err) {
+      console.error("Failed to delete report:", err);
+      showToast("Couldn't delete report. Try again.", "error");
+      btn.disabled = false;
+    }
+  }
+
+  /* ---------- Verify sellers ---------- */
+  function userVerifyCardHTML(user) {
+    const safeId = encodeURIComponent(user.id);
+    const safeName = escapeHtml(user.fullName || "Unnamed user");
+    const safeDistrict = escapeHtml(user.district || "District not set");
+    const roleLabels = { farmer: "Farmer", buyer: "Buyer", both: "Farmer & Buyer" };
+    const safeRole = escapeHtml(roleLabels[user.role] || "Role not set");
+    const isVerified = !!user.isVerified;
+
+    return `
+      <div class="admin-card" data-user-id="${safeId}">
+        <div class="admin-card__top">
+          <div class="admin-avatar">${initialsFrom(user.fullName)}</div>
+          <div class="admin-card__body">
+            <div class="admin-card__title">
+              ${safeName}${isVerified ? ` ${icon("badgeCheck", 14)}` : ""}
+            </div>
+            <div class="admin-card__meta">
+              <span>${safeRole}</span>
+              <span>${safeDistrict}</span>
+              <span>Joined ${formatRelativeTime(user.createdAt)}</span>
+            </div>
+          </div>
+        </div>
+        <div class="admin-card__actions">
+          <button type="button" class="btn ${isVerified ? "btn-outline" : "btn-primary"}" data-toggle-verify-id="${safeId}" data-currently-verified="${isVerified}">
+            ${isVerified ? "Remove verification" : "Verify seller"}
+          </button>
+        </div>
+      </div>
+    `;
+  }
+
+  async function loadUsers() {
+    const container = document.getElementById("usersContainer");
+    try {
+      const users = await getRecentUsersForAdmin();
+
+      if (!users.length) {
+        renderState(container, "empty", {
+          title: "No users yet",
+          message: "Registered users will appear here.",
+        });
+        return;
+      }
+
+      container.innerHTML = users.map(userVerifyCardHTML).join("");
+
+      container.querySelectorAll("[data-toggle-verify-id]").forEach((btn) => {
+        btn.addEventListener("click", () => handleToggleVerify(
+          btn.dataset.toggleVerifyId,
+          btn.dataset.currentlyVerified === "true",
+          btn
+        ));
+      });
+    } catch (err) {
+      console.error("Failed to load users:", err);
+      renderState(container, "error", {
+        title: "Couldn't load users",
+        message: "Check your connection and try again.",
+        retryLabel: "Retry",
+        onRetry: loadUsers,
+      });
+    }
+  }
+
+  async function handleToggleVerify(userId, currentlyVerified, btn) {
+    const nextState = !currentlyVerified;
+    if (!currentlyVerified && !confirm("Grant this user a Verified Seller badge?")) return;
+    if (currentlyVerified && !confirm("Remove this user's verification badge?")) return;
+
+    btn.disabled = true;
+    try {
+      await updateUserProfile(userId, { isVerified: nextState });
+      showToast(nextState ? "Seller verified" : "Verification removed");
+      await loadUsers();
+    } catch (err) {
+      console.error("Failed to update verification status:", err);
+      showToast("Couldn't update verification. Try again.", "error");
+      btn.disabled = false;
+    }
+  }
+
+  /* ---------- Logout ---------- */
+  document.getElementById("logoutBtn").addEventListener("click", async () => {
+    if (!confirm("Log out of Mlimi Market?")) return;
+    await logout(); // navigates to index.html
+  });
+
+  /* ---------- Init ---------- */
+  async function init() {
+    // requireAdmin() (js/auth.js) first calls requireAuth() — redirects
+    // to login.html?redirect=admin.html if signed out — then checks
+    // the hardcoded ADMIN_UIDS allowlist, redirecting to index.html
+    // if the signed-in user isn't on it. Mirrors firestore.rules'
+    // isAdmin() check; that's the real boundary, this is just UI gating.
+    const user = await requireAdmin();
+    if (!user) return;
+
+    await Promise.all([loadPendingListings(), loadReports(), loadUsers()]);
+  }
+
+  init();
+</script>
+
+</body>
+</html>
