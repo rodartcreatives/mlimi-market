@@ -1,0 +1,299 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
+<title>Saved — Mlimi Market</title>
+<meta name="theme-color" content="#123329">
+
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Fraunces:wght@600;700&family=Inter:wght@400;500;600;700&family=JetBrains+Mono:wght@500;600&display=swap" rel="stylesheet">
+
+<link rel="stylesheet" href="css/shared.css">
+
+<style>
+  /* Page-specific styles for the buyer dashboard screen only */
+  .dash-header { padding: var(--space-4) 0 var(--space-5); }
+  .dash-header h1 { font-size: 24px; }
+
+  .section-heading {
+    display: flex;
+    align-items: baseline;
+    justify-content: space-between;
+    margin-bottom: var(--space-3);
+  }
+  section + section { margin-top: var(--space-8); }
+
+  /* ---- Saved listing wrapper (card + remove action) ---- */
+  .saved-listing-wrap {
+    display: flex;
+    flex-direction: column;
+    gap: var(--space-2);
+  }
+  .saved-listing-wrap__remove {
+    font-size: 13px;
+    min-height: 36px;
+  }
+  .saved-listing-wrap .listing-card {
+    position: relative;
+  }
+  .saved-listing-wrap__sold-badge {
+    position: absolute;
+    top: 8px;
+    left: 8px;
+    z-index: 2;
+  }
+
+  /* ---- Enquiry card ---- */
+  .enquiry-card {
+    background: var(--color-white);
+    border: 1px solid var(--color-line);
+    border-radius: var(--radius-md);
+    padding: var(--space-3) var(--space-4);
+    margin-bottom: var(--space-3);
+  }
+  .enquiry-card__head {
+    display: flex;
+    align-items: center;
+    gap: var(--space-2);
+    margin-bottom: var(--space-2);
+  }
+  .enquiry-avatar {
+    width: 32px;
+    height: 32px;
+    border-radius: 50%;
+    background: var(--color-parchment-dark);
+    color: var(--color-green-700);
+    font-family: var(--font-display);
+    font-weight: 600;
+    font-size: 13px;
+    flex-shrink: 0;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+  }
+  .enquiry-card__name { font-weight: 600; font-size: 13px; color: var(--color-ink); }
+  .enquiry-card__name .badge { transform: scale(0.85); transform-origin: left center; }
+  .enquiry-card__sub { font-size: 11px; color: var(--color-ink-soft); }
+  .enquiry-card__listing {
+    font-size: 12px;
+    font-weight: 600;
+    color: var(--color-green-700);
+    margin-bottom: 6px;
+    display: inline-block;
+  }
+  .enquiry-card__message {
+    font-size: 14px;
+    color: var(--color-ink);
+    white-space: pre-wrap;
+  }
+</style>
+</head>
+<body>
+
+<div class="page">
+
+  <div class="dash-header">
+    <h1 class="font-display">Saved</h1>
+  </div>
+
+  <section>
+    <div class="section-heading">
+      <h2>Saved listings</h2>
+    </div>
+    <div id="savedContainer">
+      <div class="state-block"><div class="spinner"></div></div>
+    </div>
+  </section>
+
+  <section>
+    <div class="section-heading">
+      <h2>My enquiries</h2>
+    </div>
+    <div id="enquiriesContainer">
+      <div class="state-block"><div class="spinner"></div></div>
+    </div>
+  </section>
+
+</div>
+
+<!-- Firebase (compat SDK — plain global objects, no bundler needed) -->
+<script src="https://www.gstatic.com/firebasejs/10.13.1/firebase-app-compat.js"></script>
+<script src="https://www.gstatic.com/firebasejs/10.13.1/firebase-firestore-compat.js"></script>
+<script src="https://www.gstatic.com/firebasejs/10.13.1/firebase-auth-compat.js"></script>
+
+<script src="js/firebase-config.js"></script>
+<script src="js/auth.js"></script>
+<script src="js/icons.js"></script>
+<script src="js/categories.js"></script>
+<script src="js/firestore-helpers.js"></script>
+<script src="js/ui-helpers.js"></script>
+<script src="js/nav.js"></script>
+
+<script>
+  let currentUser = null;
+
+  // Caches so rendering the enquiries list doesn't re-fetch the
+  // same seller profile or listing doc once per enquiry.
+  const sellerProfileCache = {};
+  const listingCache = {};
+
+  function initialsFrom(name) {
+    const raw = (name || "?").trim().split(/\s+/).slice(0, 2).map((w) => w[0].toUpperCase()).join("");
+    return escapeHtml(raw);
+  }
+
+  /* ---------- Saved listings ---------- */
+  function savedListingCardHTML(listing) {
+    const cardHTML = listingCardHTML(listing, { extraClass: "fade-in-up" });
+    const safeId = encodeURIComponent(listing.id);
+    const soldBadgeHTML = listing.status === "sold"
+      ? `<span class="badge badge-status-sold saved-listing-wrap__sold-badge">Sold</span>`
+      : "";
+
+    return `
+      <div class="saved-listing-wrap" data-listing-id="${safeId}">
+        <div style="position:relative;">
+          ${soldBadgeHTML}
+          ${cardHTML}
+        </div>
+        <button type="button" class="btn btn-outline saved-listing-wrap__remove" data-unfav-id="${safeId}">Remove from saved</button>
+      </div>
+    `;
+  }
+
+  async function loadSavedListings() {
+    const container = document.getElementById("savedContainer");
+    try {
+      const listings = await getFavouriteListings(currentUser.uid);
+
+      if (!listings.length) {
+        renderState(container, "empty", {
+          icon: icon("heart", 40),
+          title: "Nothing saved yet",
+          message: "Tap the heart on a listing in the Market to save it here.",
+        });
+        return;
+      }
+
+      container.innerHTML = `<div class="listing-grid">${listings.map(savedListingCardHTML).join("")}</div>`;
+
+      container.querySelectorAll("[data-unfav-id]").forEach((btn) => {
+        btn.addEventListener("click", () => handleRemoveFavourite(btn.dataset.unfavId, btn));
+      });
+    } catch (err) {
+      console.error("Failed to load saved listings:", err);
+      renderState(container, "error", {
+        title: "Couldn't load your saved listings",
+        message: "Check your connection and try again.",
+        retryLabel: "Retry",
+        onRetry: loadSavedListings,
+      });
+    }
+  }
+
+  async function handleRemoveFavourite(listingId, btn) {
+    btn.disabled = true;
+    btn.textContent = "Removing...";
+    try {
+      await toggleFavourite(currentUser.uid, listingId);
+      showToast("Removed from saved");
+      await loadSavedListings();
+    } catch (err) {
+      console.error("Failed to remove favourite:", err);
+      showToast("Couldn't remove. Try again.", "error");
+      btn.disabled = false;
+      btn.textContent = "Remove from saved";
+    }
+  }
+
+  /* ---------- My enquiries ---------- */
+  async function getCachedSellerProfile(sellerId) {
+    if (sellerProfileCache[sellerId] !== undefined) return sellerProfileCache[sellerId];
+    const profile = await getUserProfileById(sellerId).catch(() => null);
+    sellerProfileCache[sellerId] = profile;
+    return profile;
+  }
+
+  async function getCachedListing(listingId) {
+    if (listingCache[listingId] !== undefined) return listingCache[listingId];
+    const listing = await getListingById(listingId).catch(() => null);
+    listingCache[listingId] = listing;
+    return listing;
+  }
+
+  function enquiryCardHTML(enquiry, sellerProfile, listing) {
+    const safeSellerName = escapeHtml((sellerProfile && sellerProfile.fullName) || "The seller");
+    const safeMessage = escapeHtml(enquiry.message || "");
+    const safeListingId = encodeURIComponent(enquiry.listingId || "");
+
+    const listingLinkHTML = listing
+      ? `<a class="enquiry-card__listing" href="listing.html?id=${safeListingId}">${escapeHtml(listing.productName || "Untitled listing")}</a>`
+      : `<span class="enquiry-card__listing" style="color:var(--color-ink-soft);">Listing removed</span>`;
+
+    return `
+      <div class="enquiry-card">
+        <div class="enquiry-card__head">
+          <div class="enquiry-avatar">${initialsFrom(sellerProfile && sellerProfile.fullName)}</div>
+          <div>
+            <div class="enquiry-card__name">
+              To: ${safeSellerName}${sellerProfile && sellerProfile.isVerified ? icon("badgeCheck", 13) : ""}
+            </div>
+            <div class="enquiry-card__sub">${formatRelativeTime(enquiry.createdAt)}</div>
+          </div>
+        </div>
+        ${listingLinkHTML}
+        <div class="enquiry-card__message">${safeMessage}</div>
+      </div>
+    `;
+  }
+
+  async function loadEnquiries() {
+    const container = document.getElementById("enquiriesContainer");
+    try {
+      const enquiries = await getEnquiriesForBuyer(currentUser.uid);
+
+      if (!enquiries.length) {
+        renderState(container, "empty", {
+          title: "No enquiries yet",
+          message: "Messages you send to sellers will show up here.",
+        });
+        return;
+      }
+
+      const enriched = await Promise.all(enquiries.map(async (enq) => ({
+        enquiry: enq,
+        sellerProfile: await getCachedSellerProfile(enq.sellerId),
+        listing: await getCachedListing(enq.listingId),
+      })));
+
+      container.innerHTML = enriched
+        .map(({ enquiry, sellerProfile, listing }) => enquiryCardHTML(enquiry, sellerProfile, listing))
+        .join("");
+    } catch (err) {
+      console.error("Failed to load your enquiries:", err);
+      renderState(container, "error", {
+        title: "Couldn't load your enquiries",
+        message: "Check your connection and try again.",
+        retryLabel: "Retry",
+        onRetry: loadEnquiries,
+      });
+    }
+  }
+
+  /* ---------- Init ---------- */
+  async function init() {
+    const user = await requireAuth(); // redirects to login.html?redirect=dashboard-buyer.html if signed out
+    if (!user) return;
+
+    currentUser = user;
+    await Promise.all([loadSavedListings(), loadEnquiries()]);
+  }
+
+  init();
+  renderBottomNav("saved");
+</script>
+
+</body>
+</html>
