@@ -184,6 +184,18 @@ async function toggleFavourite(userId, listingId) {
   return true;
 }
 
+/**
+ * NOTE: because listings/{id} read rules require isApproved == true
+ * (or the caller being the seller/admin) per document, and this
+ * function does a chunked "in" query across arbitrary listing IDs,
+ * a favourite pointing at a listing that later became unapproved,
+ * sold-and-removed, or deleted by another user can cause that
+ * specific chunk's read to behave inconsistently depending on
+ * Firestore's handling of mixed-visibility "in" queries. In
+ * practice this only bites if a favourited listing's visibility
+ * changes after the fact — rare at MVP scale, but worth knowing if
+ * a saved listing mysteriously fails to appear on dashboard-buyer.html.
+ */
 async function getFavouriteListings(userId) {
   const favSnap = await db.collection("favourites").where("userId", "==", userId).get();
   const listingIds = favSnap.docs.map((d) => d.data().listingId);
@@ -258,6 +270,72 @@ async function updateUserProfile(userId, updates) {
     ...updates,
     updatedAt: firebase.firestore.FieldValue.serverTimestamp(),
   }, { merge: true });
+}
+
+/* ---------- Admin ---------- */
+/**
+ * Everything in this section relies on firestore.rules granting
+ * isAdmin() broader read/write access than a normal signed-in user
+ * gets (see firestore.rules: listings read/update, reports
+ * read/update/delete). These functions do not check admin status
+ * themselves — that's requireAdmin() in auth.js, called by
+ * admin.html before any of these run. If a non-admin somehow calls
+ * these directly, Firestore's own rules reject the request; this
+ * is defense in depth, not the actual boundary.
+ */
+
+/**
+ * Listings awaiting moderation (isApproved == false). Only an
+ * admin can read these for sellers other than themselves — see
+ * the listings read rule in firestore.rules.
+ */
+async function getPendingListings() {
+  const snap = await db.collection("listings")
+    .where("isApproved", "==", false)
+    .orderBy("createdAt", "desc")
+    .get();
+  return snap.docs.map((d) => ({ id: d.id, ...d.data() }));
+}
+
+async function approveListing(listingId) {
+  return updateListing(listingId, { isApproved: true });
+}
+
+/**
+ * Reports still awaiting admin action. status starts "open" (see
+ * createReport above) and moves to "resolved" or "dismissed".
+ */
+async function getOpenReports() {
+  const snap = await db.collection("reports")
+    .where("status", "==", "open")
+    .orderBy("createdAt", "desc")
+    .get();
+  return snap.docs.map((d) => ({ id: d.id, ...d.data() }));
+}
+
+async function resolveReport(reportId) {
+  await db.collection("reports").doc(reportId).update({ status: "resolved" });
+}
+
+async function deleteReport(reportId) {
+  await db.collection("reports").doc(reportId).delete();
+}
+
+const ADMIN_USERS_FETCH_CAP = 100;
+
+/**
+ * Most-recently-joined users, for the admin verification list.
+ * Firestore has no text search (see searchListings() above for
+ * the same limitation) — at MVP admin scale, browsing by recency
+ * is enough. Revisit with a real search index if the user base
+ * grows past a page or two of scrolling.
+ */
+async function getRecentUsersForAdmin() {
+  const snap = await db.collection("users")
+    .orderBy("createdAt", "desc")
+    .limit(ADMIN_USERS_FETCH_CAP)
+    .get();
+  return snap.docs.map((d) => ({ id: d.id, ...d.data() }));
 }
 
 /* ---------- Future: wanted_requests ----------
