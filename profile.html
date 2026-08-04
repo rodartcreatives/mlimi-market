@@ -356,35 +356,50 @@
       return;
     }
 
+    const phone = phoneInputEl.value.trim();
+    const whatsappPublic = whatsappToggleEl.checked;
+
     // isVerified is intentionally never included here — it can't be
     // set by a user anyway (firestore.rules blocks it on update),
     // but keeping it out of this object entirely makes that
     // intent obvious on read, not just enforced silently server-side.
-    const updates = {
+    //
+    // phone/email are split across two writes: publicUpdates goes to
+    // the public users/{uid} doc, privateUpdates goes to
+    // users/{uid}/private/contact (owner-only read) — see
+    // firestore.rules and js/firestore-helpers.js. publicPhone is
+    // the ONLY phone-shaped field listing.html reads from, and it's
+    // only ever populated when the seller has explicitly opted in
+    // via the WhatsApp toggle.
+    const publicUpdates = {
       fullName: document.getElementById("fullNameInput").value.trim(),
-      phone: phoneInputEl.value.trim(),
       role: document.querySelector('input[name="role"]:checked')?.value || "",
       district: districtSelect.value,
       location: document.getElementById("locationInput").value.trim(),
       bio: document.getElementById("bioInput").value.trim(),
-      whatsappPublic: whatsappToggleEl.checked,
+      whatsappPublic,
+      publicPhone: whatsappPublic ? phone : "",
     };
+    const privateUpdates = { phone };
 
     const submitBtn = document.getElementById("profileSaveBtn");
     submitBtn.disabled = true;
     submitBtn.textContent = "Saving...";
 
     try {
-      await updateUserProfile(currentUser.uid, updates);
+      await Promise.all([
+        updateUserProfile(currentUser.uid, publicUpdates),
+        updateUserPrivateContact(currentUser.uid, privateUpdates),
+      ]);
 
       // Best-effort sync so Firebase Auth's own displayName matches —
       // not critical if it fails, so it's not awaited into the
       // try/catch flow blocking the save.
       if (currentUser.updateProfile) {
-        currentUser.updateProfile({ displayName: updates.fullName }).catch(() => {});
+        currentUser.updateProfile({ displayName: publicUpdates.fullName }).catch(() => {});
       }
 
-      currentProfile = { ...currentProfile, ...updates };
+      currentProfile = { ...currentProfile, ...publicUpdates, ...privateUpdates };
 
       if (isCompleteMode) {
         window.location.href = redirectAfterComplete;
@@ -418,7 +433,8 @@
     try {
       // Safety net, same pattern as login.html: guarantees a
       // profile doc exists (no-op if one already does) rather than
-      // assuming it does.
+      // assuming it does. ensureUserProfile() now returns phone/
+      // email merged in from the private/contact subcollection.
       const { profile } = await ensureUserProfile(user);
       currentProfile = profile;
       populateForm(profile);
