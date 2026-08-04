@@ -282,6 +282,14 @@
 <script src="js/nav.js"></script>
 
 <script>
+  // Presence of ?id= puts this whole page into edit mode: same
+  // four-step form, but prefilled from an existing listing and
+  // saving via updateListing() instead of createListing(). See
+  // init() below for the ownership check before any prefill happens.
+  const editListingId = new URLSearchParams(location.search).get("id");
+  const isEditMode = !!editListingId;
+  let editingListing = null; // the loaded doc, kept around for reference only
+
   const TOTAL_STEPS = 4;
   const STEP_LABELS = ["Produce", "Quantity & price", "Location", "Photos & review"];
 
@@ -427,6 +435,26 @@
     `).join("");
   }
 
+  /* ---------- Edit mode: prefill + UI adjustments ---------- */
+  function populateFormForEdit(listing) {
+    state.categorySlug = listing.categorySlug || "";
+    state.priceType = listing.priceType || "per_bag";
+    state.imageUrls = Array.isArray(listing.imageUrls) ? [...listing.imageUrls] : [];
+
+    document.getElementById("productNameInput").value = listing.productName || "";
+    document.getElementById("descriptionInput").value = listing.description || "";
+    document.getElementById("quantityInput").value = listing.quantity != null ? listing.quantity : "";
+    document.getElementById("unitInput").value = listing.unit || "";
+    document.getElementById("priceInput").value = listing.price != null ? listing.price : "";
+    sellDistrictSelect.value = listing.district || "";
+    document.getElementById("locationInput").value = listing.location || "";
+  }
+
+  function applyEditModeUI() {
+    if (!isEditMode) return;
+    document.title = "Edit Listing — Mlimi Market";
+  }
+
   /* ---------- Step navigation ---------- */
   function updateStepUI() {
     document.querySelectorAll(".sell-step").forEach((section) => {
@@ -437,7 +465,9 @@
     document.getElementById("sellProgressFill").style.width = `${(state.step / TOTAL_STEPS) * 100}%`;
 
     document.getElementById("sellPrevBtn").hidden = state.step === 1;
-    document.getElementById("sellNextBtn").textContent = state.step === TOTAL_STEPS ? "Publish listing" : "Next";
+    document.getElementById("sellNextBtn").textContent = state.step === TOTAL_STEPS
+      ? (isEditMode ? "Save changes" : "Publish listing")
+      : "Next";
 
     if (state.step === TOTAL_STEPS) renderReview();
 
@@ -492,22 +522,23 @@
     const hasProgress = state.step > 1
       || state.categorySlug
       || document.getElementById("productNameInput").value.trim();
-    if (hasProgress && !confirm("Discard this listing?")) return;
-    window.location.href = "index.html";
+    const confirmMessage = isEditMode ? "Discard your changes?" : "Discard this listing?";
+    if (hasProgress && !confirm(confirmMessage)) return;
+    window.location.href = isEditMode ? `listing.html?id=${editListingId}` : "index.html";
   });
 
   /* ---------- Submit ---------- */
   async function submitListing() {
     const nextBtn = document.getElementById("sellNextBtn");
     nextBtn.disabled = true;
-    nextBtn.textContent = "Publishing...";
+    nextBtn.textContent = isEditMode ? "Saving..." : "Publishing...";
 
     try {
       const category = getCategoryBySlug(state.categorySlug);
       const profile = await getCurrentUserProfile();
       if (!profile) throw new Error("No profile found for current user");
 
-      const listingId = await createListing({
+      const listingData = {
         productName: document.getElementById("productNameInput").value.trim(),
         description: document.getElementById("descriptionInput").value.trim(),
         categorySlug: state.categorySlug,
@@ -519,15 +550,34 @@
         district: sellDistrictSelect.value,
         location: document.getElementById("locationInput").value.trim(),
         imageUrls: state.imageUrls,
-      }, profile);
+      };
 
-      showToast("Listing published! It'll appear once approved.");
-      window.location.href = `listing.html?id=${listingId}`;
+      if (isEditMode) {
+        // Refresh the denormalized seller fields to match the
+        // profile's current values on every edit. firestore.rules
+        // requires sellerName/sellerVerified to exactly match
+        // users/{uid} on every listing write — this also means an
+        // edit is a free opportunity to fix a stale display name or
+        // pick up a verification badge earned after the original
+        // post, addressing the denormalization staleness trade-off
+        // noted in firestore-helpers.js.
+        await updateListing(editListingId, {
+          ...listingData,
+          sellerName: profile.fullName || "",
+          sellerVerified: !!profile.isVerified,
+        });
+        showToast("Listing updated");
+        window.location.href = `listing.html?id=${editListingId}`;
+      } else {
+        const listingId = await createListing(listingData, profile);
+        showToast("Listing published! It'll appear once approved.");
+        window.location.href = `listing.html?id=${listingId}`;
+      }
     } catch (err) {
-      console.error("Failed to publish listing:", err);
-      showToast("Couldn't publish your listing. Try again.", "error");
+      console.error(isEditMode ? "Failed to update listing:" : "Failed to publish listing:", err);
+      showToast(isEditMode ? "Couldn't save your changes. Try again." : "Couldn't publish your listing. Try again.", "error");
       nextBtn.disabled = false;
-      nextBtn.textContent = "Publish listing";
+      nextBtn.textContent = isEditMode ? "Save changes" : "Publish listing";
     }
   }
 
@@ -536,9 +586,33 @@
     const user = await requireAuth(); // redirects to login.html?redirect=sell.html if signed out
     if (!user) return;
 
+    if (isEditMode) {
+      try {
+        const listing = await getListingById(editListingId);
+        if (!listing) {
+          showToast("Listing not found", "error");
+          window.location.href = "dashboard-farmer.html";
+          return;
+        }
+        if (listing.sellerId !== user.uid) {
+          showToast("You can only edit your own listings", "error");
+          window.location.href = "dashboard-farmer.html";
+          return;
+        }
+        editingListing = listing;
+        populateFormForEdit(listing);
+      } catch (err) {
+        console.error("Failed to load listing for editing:", err);
+        showToast("Couldn't load that listing. Try again.", "error");
+        window.location.href = "dashboard-farmer.html";
+        return;
+      }
+    }
+
     renderCategoryGrid();
     renderPriceTypeOptions();
     renderPhotoGrid();
+    applyEditModeUI();
     updateStepUI();
   }
 
