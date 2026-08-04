@@ -15,6 +15,10 @@
 
 <style>
   /* Page-specific styles for the market screen only */
+  .sticky-header h1 {
+    letter-spacing: -0.01em;
+  }
+
   .search-bar {
     display: flex;
     align-items: center;
@@ -25,6 +29,7 @@
     padding: 0 var(--space-3);
     margin: var(--space-3) 0;
     min-height: var(--tap-min);
+    box-shadow: var(--shadow-sm);
   }
   .search-bar input {
     border: none;
@@ -34,6 +39,16 @@
   }
   .search-bar input:focus { outline: none; }
   .search-bar .icon-wrap { color: var(--color-ink-soft); display: flex; }
+
+  /* Overrides the shared.css .results-summary for this page only —
+     gives it the same eyebrow treatment used on index.html's section
+     labels, without touching the shared rule other pages rely on. */
+  .results-summary {
+    font-size: 12px;
+    font-weight: 600;
+    letter-spacing: 0.06em;
+    text-transform: uppercase;
+  }
 </style>
 </head>
 <body>
@@ -358,4 +373,4 @@
 </script>
 
 </body>
-  </html>
+</html>
