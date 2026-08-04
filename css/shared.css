@@ -24,6 +24,14 @@
   --color-success: #1B4B3A;
   --color-verified: #256B50;
 
+  /* Soft tint backgrounds — pending badges, profile-complete banner,
+     selected-state fills, focus-ring halos. Centralized here since
+     these hex values were previously duplicated across shared.css,
+     sell.html, and profile.html. */
+  --color-tint-gold: #FBF3E0;
+  --color-tint-green: #E4EFE9;
+  --color-tint-green-soft: #F1F7F3;
+
   /* Type */
   --font-display: 'Fraunces', Georgia, serif;
   --font-body: 'Inter', -apple-system, sans-serif;
@@ -194,6 +202,30 @@ h3 { font-size: 18px; }
   font-weight: 500;
 }
 
+/* ---- Icon buttons: circular, used for back/close/favourite/call actions ---- */
+.icon-btn {
+  width: 40px;
+  height: 40px;
+  border-radius: 50%;
+  background: var(--color-white);
+  border: none;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  color: var(--color-green-900);
+  box-shadow: var(--shadow-sm);
+  transition: transform var(--dur-fast) var(--ease-out),
+    color var(--dur-fast) var(--ease-out),
+    box-shadow var(--dur-base) var(--ease-out);
+}
+.icon-btn:active { transform: scale(0.88); }
+@media (hover: hover) {
+  .icon-btn:hover { box-shadow: var(--shadow-md); }
+}
+.icon-btn.is-favourited { color: var(--color-gold-600); }
+@keyframes heart-pulse { 0% { transform: scale(1); } 40% { transform: scale(1.25); } 100% { transform: scale(1); } }
+.icon-btn.is-favourited .icon-btn__icon { animation: heart-pulse var(--dur-slow) var(--ease-out); }
+
 /* ---- Cards: the "market tag" signature treatment ---- */
 /* Listing cards are styled like a tag tied to produce —
    a notch at the top-left evokes a string-tied price tag. */
@@ -264,8 +296,8 @@ h3 { font-size: 18px; }
   padding: 3px 8px;
   border-radius: 20px;
 }
-.badge-verified { background: #E4EFE9; color: var(--color-verified); }
-.badge-status-pending { background: #FBF3E0; color: var(--color-soil-600); }
+.badge-verified { background: var(--color-tint-green); color: var(--color-verified); }
+.badge-status-pending { background: var(--color-tint-gold); color: var(--color-soil-600); }
 .badge-status-sold { background: #EDEAE3; color: var(--color-ink-soft); }
 
 /* ---- Forms ---- */
@@ -664,7 +696,7 @@ h3 { font-size: 18px; }
   transition: border-color var(--dur-fast) var(--ease-out), background var(--dur-fast) var(--ease-out);
 }
 .radio-pill input { width: 18px; height: 18px; accent-color: var(--color-green-600); }
-.radio-pill:has(input:checked) { border-color: var(--color-green-600); background: #F1F7F3; }
+.radio-pill:has(input:checked) { border-color: var(--color-green-600); background: var(--color-tint-green-soft); }
 
 /* ---- Two-column field row (min/max price etc.) ---- */
 .field-row { display: grid; grid-template-columns: 1fr 1fr; gap: var(--space-3); }
