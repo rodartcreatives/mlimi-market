@@ -43,6 +43,86 @@
     transition: width var(--dur-slow) var(--ease-out);
   }
 
+  /* ---- Desktop step indicator ----
+     Hidden below md on purpose: even the Stitch mockup this is based
+     on hides its 3-step version below md, and this one has 4 nodes —
+     the compact progress bar above is the right pattern for a phone
+     screen, this is a bonus for wider viewports only. */
+  .sell-stepper {
+    display: none;
+    list-style: none;
+    margin: 0;
+    padding: 0;
+  }
+  @media (min-width: 768px) {
+    .sell-stepper {
+      display: flex;
+      justify-content: space-between;
+      padding: var(--space-5) 0 var(--space-2);
+    }
+  }
+  .sell-stepper__item {
+    position: relative;
+    flex: 1;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: var(--space-2);
+    text-align: center;
+  }
+  .sell-stepper__item::after {
+    content: '';
+    position: absolute;
+    top: 15px;
+    left: calc(50% + 19px);
+    width: calc(100% - 38px);
+    height: 2px;
+    background: var(--color-line);
+    z-index: 0;
+    transition: background var(--dur-base) var(--ease-out);
+  }
+  .sell-stepper__item:last-child::after { display: none; }
+  .sell-stepper__item.is-complete::after { background: var(--color-green-600); }
+
+  .sell-stepper__dot {
+    position: relative;
+    z-index: 1;
+    width: 30px;
+    height: 30px;
+    border-radius: 50%;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-family: var(--font-mono);
+    font-size: 13px;
+    font-weight: 600;
+    background: var(--color-white);
+    border: 1.5px solid var(--color-line);
+    color: var(--color-ink-soft);
+    transition: background var(--dur-base) var(--ease-out),
+      border-color var(--dur-base) var(--ease-out),
+      color var(--dur-base) var(--ease-out);
+  }
+  .sell-stepper__item.is-active .sell-stepper__dot {
+    border-color: var(--color-green-600);
+    color: var(--color-green-700);
+    box-shadow: 0 0 0 3px #E4EFE9;
+  }
+  .sell-stepper__item.is-complete .sell-stepper__dot {
+    background: var(--color-green-600);
+    border-color: var(--color-green-600);
+    color: var(--color-white);
+  }
+  .sell-stepper__label {
+    font-size: 12px;
+    font-weight: 500;
+    color: var(--color-ink-soft);
+  }
+  .sell-stepper__item.is-active .sell-stepper__label {
+    color: var(--color-green-900);
+    font-weight: 600;
+  }
+
   .sell-step { animation: fade-in-up var(--dur-slow) var(--ease-out) both; }
 
   .category-select-grid {
@@ -162,9 +242,28 @@
 
 <div class="page">
 
+  <ol class="sell-stepper" id="sellStepper" aria-hidden="true">
+    <li class="sell-stepper__item" data-step="1">
+      <span class="sell-stepper__dot">1</span>
+      <span class="sell-stepper__label">Produce</span>
+    </li>
+    <li class="sell-stepper__item" data-step="2">
+      <span class="sell-stepper__dot">2</span>
+      <span class="sell-stepper__label">Price</span>
+    </li>
+    <li class="sell-stepper__item" data-step="3">
+      <span class="sell-stepper__dot">3</span>
+      <span class="sell-stepper__label">Location</span>
+    </li>
+    <li class="sell-stepper__item" data-step="4">
+      <span class="sell-stepper__dot">4</span>
+      <span class="sell-stepper__label">Review</span>
+    </li>
+  </ol>
+
   <div class="sell-header">
     <div class="sell-progress">
-      <div class="sell-progress__label" id="sellStepLabel">Step 1 of 4 — Produce</div>
+      <div class="sell-progress__label" id="sellStepLabel" aria-live="polite">Step 1 of 4 — Produce</div>
       <div class="sell-progress__track"><div class="sell-progress__fill" id="sellProgressFill" style="width:25%;"></div></div>
     </div>
     <button type="button" class="icon-btn" id="sellCloseBtn" aria-label="Close" style="box-shadow:none;border:1px solid var(--color-line);"></button>
@@ -252,7 +351,10 @@
       <div class="photo-grid" id="photoGrid"></div>
       <input type="file" id="photoInput" accept="image/*" multiple hidden>
 
-      <h2 class="mt-6 mb-4">Review</h2>
+      <div class="mt-6">
+        <span class="eyebrow" id="reviewEyebrow">Final step</span>
+        <h2 class="mb-4" style="margin-top:4px;">Review</h2>
+      </div>
       <div class="review-card" id="reviewCard"></div>
     </section>
 
@@ -456,6 +558,18 @@
   }
 
   /* ---------- Step navigation ---------- */
+  function updateStepper() {
+    document.querySelectorAll(".sell-stepper__item").forEach((li) => {
+      const s = Number(li.dataset.step);
+      const dot = li.querySelector(".sell-stepper__dot");
+      const isComplete = s < state.step;
+      const isActive = s === state.step;
+      li.classList.toggle("is-complete", isComplete);
+      li.classList.toggle("is-active", isActive);
+      dot.innerHTML = isComplete ? icon("check", 14) : String(s);
+    });
+  }
+
   function updateStepUI() {
     document.querySelectorAll(".sell-step").forEach((section) => {
       section.hidden = Number(section.dataset.step) !== state.step;
@@ -463,13 +577,17 @@
 
     document.getElementById("sellStepLabel").textContent = `Step ${state.step} of ${TOTAL_STEPS} — ${STEP_LABELS[state.step - 1]}`;
     document.getElementById("sellProgressFill").style.width = `${(state.step / TOTAL_STEPS) * 100}%`;
+    updateStepper();
 
     document.getElementById("sellPrevBtn").hidden = state.step === 1;
     document.getElementById("sellNextBtn").textContent = state.step === TOTAL_STEPS
       ? (isEditMode ? "Save changes" : "Publish listing")
       : "Next";
 
-    if (state.step === TOTAL_STEPS) renderReview();
+    if (state.step === TOTAL_STEPS) {
+      renderReview();
+      document.getElementById("reviewEyebrow").textContent = isEditMode ? "Final step" : "Ready when you are";
+    }
 
     window.scrollTo({ top: 0, behavior: "smooth" });
   }
