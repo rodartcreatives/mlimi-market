@@ -708,12 +708,12 @@
         const listing = await getListingById(editListingId);
         if (!listing) {
           showToast("Listing not found", "error");
-          window.location.href = "dashboard-farmer.html";
+          window.location.href = "index.html";
           return;
         }
         if (listing.sellerId !== user.uid) {
           showToast("You can only edit your own listings", "error");
-          window.location.href = "dashboard-farmer.html";
+          window.location.href = "index.html";
           return;
         }
         editingListing = listing;
@@ -721,7 +721,7 @@
       } catch (err) {
         console.error("Failed to load listing for editing:", err);
         showToast("Couldn't load that listing. Try again.", "error");
-        window.location.href = "dashboard-farmer.html";
+        window.location.href = "index.html";
         return;
       }
     }
